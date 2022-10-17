@@ -1,0 +1,13 @@
+[package]
+name = "hyper-microservice"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hyper = "0.12"
+futures = "0.1"
+slab = "0.4"
+lazy_static = "1.0"
+regex = "1.0"
