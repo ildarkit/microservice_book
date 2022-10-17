@@ -1,3 +1,6 @@
+use std::fmt;
+use std::sync::{Arc, Mutex};
+use slab::Slab;
 use futures::{future, Future};
 use hyper::{Body, Response, Server, Error, Method, Request, StatusCode};
 use hyper::service::service_fn;
@@ -38,3 +41,7 @@ const INDEX: &'static str = r#"
     </body>
 </html>
 "#;
+
+type UserId = u64;
+struct UserData;
+type UserDb = Arc<Mutex<Slab<UserData>>>;   
