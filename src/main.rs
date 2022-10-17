@@ -5,6 +5,25 @@ use futures::{future, Future};
 use hyper::{Body, Response, Server, Error, Method, Request, StatusCode};
 use hyper::service::service_fn;
 
+
+const USER_PATH: &str = "/user/";
+const INDEX: &'static str = r#"
+<!doctype html>
+<html>
+    <head>
+        <title>Rust Microservice</title>
+    </head>
+    <body>
+        <h3>Rust Microservice</h3>
+    </body>
+</html>
+"#;
+
+type UserId = u64;
+struct UserData;
+type UserDb = Arc<Mutex<Slab<UserData>>>; 
+
+
 fn main() {
     let addr = ([127, 0, 0, 1], 8080).into();
     let builder = Server::bind(&addr);
@@ -16,6 +35,7 @@ fn main() {
     let server = server.map_err(drop);
     hyper::rt::run(server);
 }
+
 
 fn microservice_handler(req: Request<Body>, user_db: &UserDb) 
     -> impl Future<Item=Response<Body>, Error=Error>
@@ -36,6 +56,7 @@ fn microservice_handler(req: Request<Body>, user_db: &UserDb)
     future::ok(response)
 }
 
+
 fn response_with_code(status_code: StatusCode) -> Response<Body> {
     Response::builder()
         .status(status_code)
@@ -43,18 +64,3 @@ fn response_with_code(status_code: StatusCode) -> Response<Body> {
         .unwrap()
 }
 
-const INDEX: &'static str = r#"
-<!doctype html>
-<html>
-    <head>
-        <title>Rust Microservice</title>
-    </head>
-    <body>
-        <h3>Rust Microservice</h3>
-    </body>
-</html>
-"#;
-
-type UserId = u64;
-struct UserData;
-type UserDb = Arc<Mutex<Slab<UserData>>>;   
