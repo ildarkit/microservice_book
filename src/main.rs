@@ -20,18 +20,27 @@ fn main() {
 fn microservice_handler(req: Request<Body>, user_db: &UserDb) 
     -> impl Future<Item=Response<Body>, Error=Error>
 {
-    match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") => {
-            future::ok(Response::new(INDEX.into()))
-        },
-        _ => {
-            let response = Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::empty())
-                .unwrap();
-            future::ok(response)
-        },
-    }
+    let response = {
+        match (req.method(), req.uri().path()) {
+            (&Method::GET, "/") => {
+                Response::new(INDEX.into())
+            },
+            (method, path) if path.starts_with(USER_PATH) => {
+                unimplemented!();
+            },
+            _ => {
+                response_with_code(StatusCode::NOT_FOUND)
+            },
+        }
+    };
+    future::ok(response)
+}
+
+fn response_with_code(status_code: StatusCode) -> Response<Body> {
+    Response::builder()
+        .status(status_code)
+        .body(Body::empty())
+        .unwrap()
 }
 
 const INDEX: &'static str = r#"
