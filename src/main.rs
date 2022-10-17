@@ -8,12 +8,16 @@ use hyper::service::service_fn;
 fn main() {
     let addr = ([127, 0, 0, 1], 8080).into();
     let builder = Server::bind(&addr);
-    let server = builder.serve(|| service_fn(microservice_handler));
+    let user_db = Arc::new(Mutex::new(Slab::new()));
+    let server = builder.serve(move || {
+        let user_db = user_db.clone();
+        service_fn(move |req| microservice_handler(req, &user_db))
+    });
     let server = server.map_err(drop);
     hyper::rt::run(server);
 }
 
-fn microservice_handler(req: Request<Body>) 
+fn microservice_handler(req: Request<Body>, user_db: &UserDb) 
     -> impl Future<Item=Response<Body>, Error=Error>
 {
     match (req.method(), req.uri().path()) {
