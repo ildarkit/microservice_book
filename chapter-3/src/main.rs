@@ -1,6 +1,7 @@
 use hyper::{Body, Response, Server};
 use hyper::rt::Future;
 use hyper::service::service_fn_ok;
+use log::{debug, info, trace};
 
 
 fn main() {
@@ -13,5 +14,5 @@ fn main() {
         })
     });
     let server = server.map_err(drop);
-    hyper::rt::run(server);:
+    hyper::rt::run(server);
 }
