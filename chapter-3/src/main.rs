@@ -2,6 +2,7 @@ use hyper::{Body, Response, Server};
 use hyper::rt::Future;
 use hyper::service::service_fn_ok;
 use log::{debug, info, trace, warn};
+use pretty_env_logger as logger;
 use serde_derive::Deserialize;
 use std::env;
 use std::io::{self, Read};
@@ -31,7 +32,7 @@ fn main() {
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
         })
         .map_err(|err| {
-            warn!("Can't read config file: {}", err)
+            warn!("Can't read config file: {}", err);
         })
         .ok();
     let matches = App::new(crate_name!())
@@ -51,6 +52,7 @@ fn main() {
              .help("Sets a custom config file")
              .takes_value(true))
         .get_matches();
+    logger::init();
     info!("Rand Microservice - v0.1.0");
     trace!("Starting...");
     let addr = matches.value_of("address")
