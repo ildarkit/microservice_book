@@ -4,9 +4,11 @@ use hyper::service::service_fn_ok;
 use log::{debug, info, trace};
 use pretty_env_logger::init;
 use std::env;
+use dotenv::dotenv;
 
 
 fn main() {
+    dotenv().ok();
     init();
     info!("Rand Microservice - v0.1.0");
     trace!("Starting...");
