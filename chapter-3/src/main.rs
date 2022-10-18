@@ -3,13 +3,17 @@ use hyper::rt::Future;
 use hyper::service::service_fn_ok;
 use log::{debug, info, trace};
 use pretty_env_logger::init;
+use std::env;
 
 
 fn main() {
     init();
     info!("Rand Microservice - v0.1.0");
     trace!("Starting...");
-    let addr = ([127, 0, 0, 1], 8080).into();
+    let addr = env::var("ADDRESS")
+        .unwrap_or_else(|_| "127.0.0.1:8080".into())
+        .parse()
+        .expect("can't parse ADDRESS variable");
     debug!("Trying to bind server to address: {}", addr);
     let builder = Server::bind(&addr);
     trace!("Creating service handler...");
