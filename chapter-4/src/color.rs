@@ -83,3 +83,21 @@ impl<'de> Visitor<'de> for ColorVisitor {
         self.visit_str(value.as_ref())
     }
 }
+
+
+#[derive(Debug, Fail)]
+pub enum ColorError {
+    #[fail(display = "parse color's component error: {}", _0)]
+    InvalidComponent(#[cause] ParseIntError),
+    #[fail(display = "invalid value: {}", value)]
+    InvalidValue {
+        value: String,
+    },
+}
+
+
+impl From<ParseIntError> for ColorError {
+    fn from(err: ParseIntError) -> Self {
+        ColorError::InvalidComponent(err)
+    }
+}
