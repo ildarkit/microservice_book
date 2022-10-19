@@ -7,7 +7,7 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-//extern crate base64;
+extern crate base64;
 #[macro_use]
 extern crate base64_serde;
 
@@ -15,7 +15,7 @@ mod color;
 
 use hyper::{Body, Response, Server, Error, Method, Request, StatusCode};
 use hyper::service::service_fn;
-use futures::{Stream, Future};
+use futures::{future, Stream, Future};
 use rand::Rng;
 use rand::distributions::{Uniform, Normal, Bernoulli};
 use core::ops::Range;
@@ -63,7 +63,7 @@ base64_serde_type!(Base64Standard, STANDARD);
 
 
 fn handler(req: Request<Body>)
-    -> impl Future<Item=Response<Body>, Error=Error>
+    -> Box<dyn Future<Item=Response<Body>, Error=Error> + Send>
 {
     let method = req.method();
     let path = req.uri().path();
@@ -88,11 +88,28 @@ fn handler(req: Request<Body>)
                 });
             Box::new(body)
         },
+        (&Method::POST, _) => {
+            response_with_code(StatusCode::NOT_FOUND)
+        },
+        (&Method::GET, "/") | (&Method::GET, "/random") => {
+            Box::new(future::ok(Response::new("Random microservice".into())))
+        },
         _ => {
-            todo!()
-        }
+            response_with_code(StatusCode::METHOD_NOT_ALLOWED)
+        },
     }
-} 
+}
+
+
+fn response_with_code(status_code: StatusCode)
+    -> Box<dyn Future<Item=Response<Body>, Error=Error> + Send>
+{
+    let body = Response::builder()
+        .status(status_code)
+        .body(Body::empty())
+        .unwrap();
+    Box::new(future::ok(body))
+}
 
 
 fn handle_request(request: RngRequest) -> RngResponse {
