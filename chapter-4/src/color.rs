@@ -2,14 +2,14 @@ use std::fmt;
 use std::str::FromStr;
 use std::fmt::Display;
 use std::num::ParseIntError;
-use serde::{de::{self, Visitor}, Serialize, Serializer};
+use serde::{de::{self, Visitor}, Deserialize, Deserializer, Serialize, Serializer};
 
 
 pub const WHITE: Color = Color { red: 0xFF, green: 0xFF, blue: 0xFF };
 pub const BLACK: Color = Color { red: 0x00, green: 0x00, blue: 0x00 };
 
 
-#[derive(Clone, PartialEq, Eq, Deserialize)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Color {
     pub red: u8,
     pub green: u8,
@@ -82,6 +82,16 @@ impl<'de> Visitor<'de> for ColorVisitor {
             E: de::Error
     {
         self.visit_str(value.as_ref())
+    }
+}
+
+
+impl<'de> Deserialize<'de> for Color {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(ColorVisitor)
     }
 }
 
