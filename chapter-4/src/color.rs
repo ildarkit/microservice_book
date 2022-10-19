@@ -1,14 +1,15 @@
 use std::fmt;
 use std::str::FromStr;
+use std::fmt::Display;
 use std::num::ParseIntError;
-use serde::{de::{self, Visitor}, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de::{self, Visitor}, Serialize, Serializer};
 
 
 pub const WHITE: Color = Color { red: 0xFF, green: 0xFF, blue: 0xFF };
 pub const BLACK: Color = Color { red: 0x00, green: 0x00, blue: 0x00 };
 
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Deserialize)]
 pub struct Color {
     pub red: u8,
     pub green: u8,
@@ -40,7 +41,7 @@ impl Serialize for Color {
 
 
 impl FromStr for Color {
-    type Err = ColorErr;
+    type Err = ColorError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -76,7 +77,7 @@ impl<'de> Visitor<'de> for ColorVisitor {
         value.parse::<Color>().map_err(|err| de::Error::custom(err.to_string()))
     }
 
-    fn visit_string(self, value: string) -> Result<Self::Value, E>
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
         where
             E: de::Error
     {
