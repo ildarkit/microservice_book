@@ -10,10 +10,12 @@ extern crate serde_json;
 extern crate base64;
 #[macro_use]
 extern crate base64_serde;
+extern crate queryst;
+extern crate serde_cbor;
 
 mod color;
 
-use hyper::{Body, Response, Server, Error, Method, Request, StatusCode};
+use hyper::{Body, Response, Server, Method, Request, StatusCode};
 use hyper::service::service_fn;
 use futures::{future, Stream, Future};
 use rand::Rng;
@@ -22,6 +24,8 @@ use core::ops::Range;
 use std::cmp::{min, max};
 use base64::STANDARD;
 use color::Color;
+use failure::Error;
+use serde_json::Value;
 
 
 #[derive(Serialize)]
@@ -63,17 +67,23 @@ base64_serde_type!(Base64Standard, STANDARD);
 
 
 fn handler(req: Request<Body>)
-    -> Box<dyn Future<Item=Response<Body>, Error=Error> + Send>
+    -> Box<dyn Future<Item=Response<Body>, Error=hyper::Error> + Send>
 {
     let method = req.method();
     let path = req.uri().path();
     match (method, path) {
         (&Method::POST, "/random") => {
+            let format = {
+                let uri = req.uri().query().unwrap_or("");
+                let query = queryst::parse(uri).unwrap_or(Value::Null);
+                query["format"].as_str().unwrap_or("json").to_string()
+            };
             let body = req.into_body().concat2()
-                .map(|chunks| {
+                .map(move |chunks| {
                     let res = serde_json::from_slice::<RngRequest>(chunks.as_ref())
                         .map(handle_request)
-                        .and_then(|resp| serde_json::to_string(&resp));
+                        .map_err(Error::from)
+                        .and_then(move |resp| serialize(&format, &resp));
                     match res {
                         Ok(body) => {
                             Response::new(body.into())
@@ -102,7 +112,7 @@ fn handler(req: Request<Body>)
 
 
 fn response_with_code(status_code: StatusCode)
-    -> Box<dyn Future<Item=Response<Body>, Error=Error> + Send>
+    -> Box<dyn Future<Item=Response<Body>, Error=hyper::Error> + Send>
 {
     let body = Response::builder()
         .status(status_code)
@@ -144,6 +154,21 @@ fn handle_request(request: RngRequest) -> RngResponse {
 fn color_range(from: u8, to: u8) -> Uniform<u8> {
     let (from, to) = (min(from, to), max(from, to));
     Uniform::new_inclusive(from, to)
+}
+
+
+fn serialize(format: &str, resp: &RngResponse) -> Result<Vec<u8>, Error> {
+    match format {
+        "json" => {
+            Ok(serde_json::to_vec(resp)?)
+        },
+        "cbor" => {
+            Ok(serde_cbor::to_vec(resp)?)
+        },
+        _ => {
+            Err(format_err!("unsupported format {}", format))
+        },
+    }
 }
 
 
