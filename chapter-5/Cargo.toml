@@ -10,4 +10,7 @@ futures = "0.1"
 hyper = "0.12"
 rand = "0.5"
 tokio = "0.1"
+lazy_static = "1.0"
+hyper-staticfile = "0.4"
+regex = "1.6.0"
 
