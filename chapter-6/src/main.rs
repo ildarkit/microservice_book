@@ -1,11 +1,11 @@
 use failure::Error;
-use JSON-RPC::client::Client;
-use JSON-RPC::error::Error as ClientError;
-use JSON-RPC_http_server::ServerBuilder;
-use JSON-RPC_http_server::JSON-RPC_core::{IoHandler, Error as ServerError, Value};
+use jsonrpc::client::Client;
+use jsonrpc::error::Error as ClientError;
+use jsonrpc_http_server::ServerBuilder;
+use jsonrpc_http_server::jsonrpc_core::{IoHandler, Error as ServerError, Value};
 use log::{debug, error, trace};
 use serde::Deserialize;
-use std::{env, fmt, net::SocketAddr, sync::Mutex, Thread};
+use std::{env, fmt, net::SocketAddr, sync::Mutex, thread};
 use std::sync::mpsc::{channel, Sender};
 
 
