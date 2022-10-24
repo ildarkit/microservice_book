@@ -21,7 +21,7 @@ struct Remote {
 
 impl Remote {
     fn new(addr: SocketAddr) -> Self {
-        let url = format!("http:/{}", addr);
+        let url = format!("http://{}", addr);
         let builder = Builder::new();
         let t = builder.url(&url).unwrap()
             .build();
