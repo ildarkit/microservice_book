@@ -1,7 +1,7 @@
 use failure::Error;
 use jsonrpc::{self, Client};
 use jsonrpc::error::Error as ClientError;
-use jsonrpc::simple_http::{self, Builder};
+use jsonrpc::simple_http::Builder;
 use jsonrpc_http_server::ServerBuilder;
 use jsonrpc_http_server::jsonrpc_core::{IoHandler, Error as ServerError, Value};
 use log::{debug, error, trace};
@@ -96,6 +96,37 @@ fn spawn_worker() -> Result<Sender<Action>, Error> {
 }
 
 
-fn main() {
-    println!("Hello, world!");
+fn to_internal<E: fmt::Display>(err: E) -> ServerError {
+    error!("Error {}", err);
+    ServerError::internal_error()
+}
+
+
+fn main() -> Result<(), Error> {
+    env_logger::init();
+    let tx = spawn_worker()?;
+    let addr: SocketAddr = env::var("ADDRESS")?.parse()?;
+    let mut io = IoHandler::default();
+    let sender = Mutex::new(tx.clone());
+    io.add_sync_method(START_ROLL_CALL, move |_| {
+        trace!("START_ROLL_CALL");
+        let tx = sender
+            .lock()
+            .map_err(to_internal)?;
+        tx.send(Action::StartRollCall)
+            .map_err(to_internal)
+            .map(|_| Value::Bool(true))
+    });
+    let sender = Mutex::new(tx.clone());
+    io.add_sync_method(MARK_ITSELF, move |_| {
+        trace!("MARK_ITSELF");
+        let tx = sender
+            .lock()
+            .map_err(to_internal)?;
+        tx.send(Action::MarkItself)
+            .map_err(to_internal)
+            .map(|_| Value::Bool(true))
+    });
+    let server = ServerBuilder::new(io).start_http(&addr)?;
+    Ok(server.wait())
 }
