@@ -52,6 +52,50 @@ impl Remote {
 }
 
 
+enum Action {
+    StartRollCall,
+    MarkItself,
+}
+
+
+fn spawn_worker() -> Result<Sender<Action>, Error> {
+    let (tx, rx) = channel();
+    let next: SocketAddr = env::var("NEXT")?.parse()?;
+    thread::spawn(move || {
+        let remote = Remote::new(next);
+        let mut in_roll_call = false;
+        for action in rx.iter() {
+            match action {
+                Action::StartRollCall => {
+                    if !in_roll_call {
+                        if remote.start_roll_call().is_ok() {
+                            debug!("ON");
+                            in_roll_call = true;
+                        }
+                    } else {
+                        if remote.mark_itself().is_ok() {
+                            debug!("OFF");
+                            in_roll_call = false;
+                        }
+                    }
+                },
+                Action::MarkItself => {
+                    if in_roll_call {
+                        if remote.mark_itself().is_ok() {
+                            debug!("OFF");
+                            in_roll_call = false;
+                        }
+                    } else {
+                        debug!("SKIP");
+                    }
+                },
+            }
+        }
+    });
+    Ok(tx)
+}
+
+
 fn main() {
     println!("Hello, world!");
 }
