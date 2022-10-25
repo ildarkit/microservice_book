@@ -1,11 +1,11 @@
-extern crate protoc_rust_grpc;
+use protoc_rust_grpc::Codegen;
 
 fn main() {
-    protoc_rust_grpc::run(protoc_rust_grpc::Args {
-        out_dir: "src",
-        includes: &[],
-        input: &["ring.proto"],
-        rust_protobuf: true,
-        ..Default::default()
-    }).expect("protoc-rust-grpc")
+    Codegen::new()
+        .includes(&["src/protos"])
+        .input("src/protos/ring.proto")
+        .rust_protobuf(true)
+        .out_dir("src")
+        .run()
+        .expect("protoc-rust-grpc");
 }
