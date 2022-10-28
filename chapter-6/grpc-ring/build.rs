@@ -1,11 +1,7 @@
-use protoc_rust_grpc::Codegen;
-
-fn main() {
-    Codegen::new()
-        .includes(&["src/protos"])
-        .input("src/protos/ring.proto")
-        .rust_protobuf(true)
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let proto_file = "src/protos/ring.proto";
+    tonic_build::configure()
         .out_dir("src")
-        .run()
-        .expect("protoc-rust-grpc");
+        .compile(&[proto_file], &["."])?;
+    Ok(())
 }
