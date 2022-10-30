@@ -1,35 +1,57 @@
-mod ring;
-mod ring_grpc;
+pub mod grpc {
+    tonic::include_proto!("ringproto");
+}
+mod error;
 
-use crate::ring::Empty;
-use crate::ring_grpc::{Ring, RingClient};
-use grpc::{ClientConf, ClientStubExt, Error as GrpcError, RequestOptions};
-use std::net::SocketAddr;
+use std::time::Duration;
+use tonic::{Request, Response, Status, transport::{Channel, Endpoint}};
+use crate::error::RingGrpcError;
+use crate::grpc::ring_client::RingClient;
+use crate::grpc::Empty;
 
-pub struct Remote {
-    client: RingClient,
+pub struct Remote<Channel>  {
+    client: RingClient<Channel>,
 }
 
-impl Remote {
-    pub fn new(addr: SocketAddr) -> Result<Self, GrpcError> {
-        let host = addr.ip().to_string();
-        let port = addr.port();
-        let conf = ClientConf::default();
-        let client = RingClient::new_plain(&host, port, conf);
+impl Remote<Channel> { 
+    pub async fn new(addr: String) -> Result<Self, Box<dyn std::error::Error>> {
+        let channel = Endpoint::new(addr)?
+            .timeout(Duration::from_secs(3))
+            .connect_timeout(Duration::from_secs(10))
+            .connect_lazy();
+        let client = RingClient::new(channel);
         Ok(Self {
-            client
+            client,
         })
     }
 
-    pub fn start_roll_call(&self) -> Result<Empty, GrpcError> {
-        self.client.start_roll_call(RequestOptions::new(), Empty::new())
-            .wait()
-            .map(|(_, value, _)| value)
+    pub async fn start_roll_call(&mut self) -> Result<Empty, RingGrpcError> {
+        let response = self.client
+            .start_roll_call(Request::new(Empty {}))
+            .await;
+        self.get_from_response(response)
     }
 
-    pub fn mark_itself(&self) -> Result<Empty, GrpcError> {
-        self.client.mark_itself(RequestOptions::new(), Empty::new())
-            .wait()
-            .map(|(_, value, _)| value)
+    pub async fn mark_itself(&mut self) -> Result<Empty, RingGrpcError> {
+        let response = self.client
+            .mark_itself(Request::new(Empty {}))
+            .await;
+        self.get_from_response(response)
+    }
+
+    fn get_from_response(&self, response: Result<Response<Empty>, Status>)
+        -> Result<Empty, RingGrpcError>
+    {
+        match response {
+            Ok(resp) => Ok(resp.into_inner()),
+            Err(status) => {
+                log::error!("Error response with status {}", status);
+                Err(
+                    RingGrpcError::new(
+                        format!("Internal error: {}", status).as_str()
+                        )
+                    )
+            },
+        }
     }
 }

@@ -1,93 +1,83 @@
-mod ring;
-mod ring_grpc;
-
-use crate::ring::Empty;
-use crate::ring_grpc::{Ring, RingServer};
-use failure::Error;
-use grpc::{Error as GrpcError, ServerBuilder, SingleResponse, RequestOptions};
+use grpc_ring::grpc::Empty;
+use grpc_ring::grpc::ring_server::{Ring, RingServer};
 use grpc_ring::Remote;
-use log::{debug, trace};
-use std::{env, net::SocketAddr};
-use std::sync::Mutex;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use log::{debug, trace, error, info};
+use std::env;
+use tonic::{transport::Server, Request, Response, Status};
+use tokio::{self, sync::mpsc::{self, Sender, Receiver}};
 
 
+#[derive(Debug)]
 enum Action {
     StartRollCall,
     MarkItself,
 }
 
-struct RingImpl {
-    sender: Mutex<Sender<Action>>,
+#[derive(Debug)]
+struct RingService {
+    sender: Sender<Action>,
 }
 
-impl RingImpl {
+impl RingService {
     fn new(sender: Sender<Action>) -> Self {
         Self {
-            sender: Mutex::new(sender),
+            sender,
         }
     }
 
-    fn send_action(&self, action: Action) -> SingleResponse<Empty> {
-        let tx = try_or_response!(self.sender.lock());
-        try_or_response!(tx.send(action));
-        let result = Empty::new();
-        SingleResponse::completed(result)
+    async fn send_action(&self, action: Action) -> Result<Response<Empty>, Status> {
+        self.sender.send(action).await.unwrap();
+        Ok(Response::new(Empty {}))
     }
 }
 
-impl Ring for RingImpl {
-    fn start_roll_call(&self, _: RequestOptions, _: Empty)
-        -> SingleResponse<Empty>
+#[tonic::async_trait]
+impl Ring for RingService {
+    async fn start_roll_call(&self, _: Request<Empty>)
+        ->  Result<Response<Empty>, Status>
     {
         trace!("START_ROLL_CALL");
-        self.send_action(Action::StartRollCall)
+        self.send_action(Action::StartRollCall).await
     }
 
-    fn mark_itself(&self, _: RequestOptions, _: Empty) 
-        -> SingleResponse<Empty>
+    async fn mark_itself(&self, _: Request<Empty>) 
+        -> Result<Response<Empty>, Status>
     {
         trace!("MARK_INSELF");
-        self.send_action(Action::MarkItself)
+        self.send_action(Action::MarkItself).await
     }
 }
 
-macro_rules! try_or_response {
-    ($x:expr) => {{
-        match $x {
-            Ok(value) => {
-                value
-            },
-            Err(err) => {
-                let error = GrpcError::Panic(err.to_string());
-                return SingleResponse::err(error);
-            },
+async fn worker_loop(mut receiver: Receiver<Action>)
+    -> Result<(), Box<dyn std::error::Error>>
+{
+    let next = match env::var("NEXT") {
+        Ok(val) => val,
+        Err(e) => {
+            error!("$NEXT is not set: {}", e.to_string());
+            return Err(Box::new(e))
         }
-    }};
-}
-
-fn worker_loop(receiver: Receiver<Action>) -> Result<(), Error> {
-    let next = env::var("NEXT")?.parse()?;
-    let remote = Remote::new(next)?;
+    };
+    let mut remote = Remote::new(next).await?;
     let mut in_roll_call = false;
-    for action in receiver.iter() {
-        match action {
-            Action::StartRollCall => {
-                    if !in_roll_call {
-                        if remote.start_roll_call().is_ok() {
-                            debug!("ON");
-                            in_roll_call = true;
-                        }
-                    } else {
-                        if remote.mark_itself().is_ok() {
-                            debug!("OFF");
-                            in_roll_call = false;
-                        }
+    loop {
+        match receiver.recv().await {
+            Some(Action::StartRollCall) => {
+                if !in_roll_call {
+                    if remote.start_roll_call().await.is_ok() {
+                        debug!("ON");
+                        in_roll_call = true;
                     }
-                },
-            Action::MarkItself => {
+                } else {
+                    if remote.mark_itself().await.is_ok() {
+                        debug!("OFF");
+                        in_roll_call = false;
+                    }
+                }
+            },
+            Some(Action::MarkItself) => {
                 if in_roll_call {
-                    if remote.mark_itself().is_ok() {
+                    if remote.mark_itself().await.is_ok() {
                         debug!("OFF");
                         in_roll_call = false;
                     }
@@ -95,22 +85,30 @@ fn worker_loop(receiver: Receiver<Action>) -> Result<(), Error> {
                     debug!("SKIP");
                 }
             },
+            None => break,
         }
     }
     Ok(())
 }
 
-
-fn main() -> Result<(), Error> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-    let (tx, rx) = channel();
-    let addr: SocketAddr = env::var("ADDRESS")?.parse()?;
-    let mut server = ServerBuilder::new_plain();
-    server.http.set_addr(addr)?;
-    let ring = RingImpl::new(tx);
-    server.add_service(RingServer::new_service_def(ring));
-    server.http.set_cpu_pool_threads(4);
-    let _server = server.build()?;
+    let (tx, rx) = mpsc::channel(4);
+    let addr = env::var("ADDRESS")?.parse()?;
+    let ring_service = RingService::new(tx);
+    let svc = RingServer::new(ring_service);
 
-    worker_loop(rx)
+    info!("Worker is running");
+    tokio::spawn(async move {
+        worker_loop(rx).await.unwrap();
+    });
+
+    info!("Server is running"); 
+    Server::builder()
+        .add_service(svc)
+        .serve(addr)
+        .await?; 
+
+    Ok(())
 }

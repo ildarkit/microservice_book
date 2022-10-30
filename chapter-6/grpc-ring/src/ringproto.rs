@@ -48,7 +48,7 @@ pub mod ring_client {
                 Response = http::Response<
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
-        >,
+            >,
             <T as tonic::codegen::Service<
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
