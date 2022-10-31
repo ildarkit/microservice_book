@@ -1,9 +1,14 @@
 extern crate clap;
 extern crate postgres;
 
+use std::io;
+use std::error::Error;
+use std::str::FromStr;
 use clap::{arg, command, Command};
-use postgres::{Client, error::Error, NoTls};
+use postgres::{Client, config::Config, error::Error as PostgresError, NoTls};
 use serde_derive::Deserialize;
+use rayon::iter::{ParallelIterator, IntoParallelRefIterator};
+use r2d2_postgres::PostgresConnectionManager;
 
 const CMD_CREATE: &str = "create";
 const CMD_ADD: &str = "add";
@@ -16,7 +21,7 @@ struct User {
     email: String,
 }
 
-fn create_table(conn: &mut Client) -> Result<(), Error> {
+fn create_table(conn: &mut Client) -> Result<(), PostgresError> {
     conn.execute("CREATE TABLE users (
         id SERIAL PRIMARY KEY,
         name VARCHAR NOT NULL,
@@ -24,13 +29,13 @@ fn create_table(conn: &mut Client) -> Result<(), Error> {
         .map(drop)
 }
 
-fn create_user(conn: &mut Client, user: &User) -> Result<(), Error> {
+fn create_user(conn: &mut Client, user: &User) -> Result<(), PostgresError> {
     conn.execute("INSERT INTO users (name, email) VALUES ($1, $2)",
     &[&user.name, &user.email])
         .map(drop)
 }
 
-fn list_users(conn: &mut Client,) -> Result<Vec<User>, Error> {
+fn list_users(conn: &mut Client,) -> Result<Vec<User>, PostgresError> {
     let res = conn.query("SELECT name, email FROM users", &[])?.into_iter()
         .map(|row| {
             User {
@@ -42,7 +47,7 @@ fn list_users(conn: &mut Client,) -> Result<Vec<User>, Error> {
     Ok(res)
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Box<dyn Error>> {
    let matches = command!()
        .arg(arg!(database: -d --db <ADDR> "Sets an address of db connection"))
        .subcommand(Command::new(CMD_CREATE)
@@ -59,10 +64,13 @@ fn main() -> Result<(), Error> {
                    .about("print list of users"))
        .get_matches();
 
-   let default_addr = "postgres://postgres@localhost:5432".to_string();
+   let default_addr = "postgresql://postgres@localhost:5432".to_string();
    let addr = matches.get_one::<String>("database")
        .unwrap_or(&default_addr);
-   let mut conn = Client::connect(addr, NoTls)?;
+   let config = Config::from_str(addr).unwrap();
+   let manager = PostgresConnectionManager::new(config, NoTls);
+   let pool = r2d2::Pool::new(manager).unwrap();
+   let mut conn = pool.get()?;
 
    match matches.subcommand() {
        Some((CMD_CREATE, _)) => {
@@ -79,6 +87,20 @@ fn main() -> Result<(), Error> {
            for user in list {
                println!("Name {:20}     Email {:20}", user.name, user.email);
            }
+       },
+       Some((CMD_IMPORT, _)) => {
+           let mut rdr = csv::Reader::from_reader(io::stdin());
+           let mut users = Vec::new();
+           for user in rdr.deserialize() {
+               users.push(user.unwrap());
+           }
+           users.par_iter()
+               .map(|user| -> Result<(), failure::Error> {
+                   let mut conn = pool.get()?;
+                   create_user(&mut conn, user)?;
+                   Ok(())
+               })
+           .for_each(drop);
        },
        _ => { },
    }
