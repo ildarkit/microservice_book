@@ -1,5 +1,6 @@
 use serde_derive::Serialize;
-use super::schema::users;
+use crate::schema::users;
+use diesel::prelude::*;
 
 #[derive(Debug, Serialize, Queryable)]
 pub struct User {
@@ -9,7 +10,7 @@ pub struct User {
 }
 
 #[derive(Insertable)]
-#[table_name = "users"]
+#[diesel(table_name = users)]
 pub struct NewUser<'a> {
     pub id: &'a str,
     pub name: &'a str,
