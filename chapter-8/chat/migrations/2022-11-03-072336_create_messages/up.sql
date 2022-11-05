@@ -3,5 +3,5 @@ CREATE TABLE messages (
   timestamp TIMESTAMP NOT NULL,
   channel_id INTEGER NOT NULL REFERENCES channels,
   user_id INTEGER NOT NULL REFERENCES users,
-  test TEXT NOT NULL
+  text TEXT NOT NULL
 );

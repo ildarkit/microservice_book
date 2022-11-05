@@ -25,7 +25,7 @@ diesel::table! {
         timestamp -> Timestamp,
         channel_id -> Int4,
         user_id -> Int4,
-        test -> Text,
+        text -> Text,
     }
 }
 
