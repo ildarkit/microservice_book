@@ -1,104 +1,137 @@
-use failure::{Error, format_err};
-use futures::{Future, Stream, future};
-use gotham::handler::HandlerFuture;
-use gotham::middleware::state::StateMiddleware;
-use gotham::pipeline::single::single_pipeline;
-use gotham::pipeline::single_middleware;
+use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
+use failure::Error;
+use gotham::handler::HandlerResult;//{HandlerError, HandlerResult};
+//use gotham::middleware::state::StateMiddleware;
+//use gotham::pipeline::single_pipeline;
+//use gotham::pipeline::single_middleware;
 use gotham::router::Router;
-use gotham::router::builder::{DefineSingleRoute, DrawRoutes, build_router};
+use gotham::router::build_simple_router;//{DefineSingleRoute, DrawRoutes, build_router};
 use gotham::state::{FromState, State};
-use gotham_derive::StateData;
-use hyper::Response;
+use gotham::mime::TEXT_HTML_UTF_8;
+use gotham::helpers::http::response::create_response;
+use gotham::prelude::*;
+use hyper::StatusCode;//{Body, Response, StatusCode};
 use hyper::header::{HeaderMap, USER_AGENT};
-use std::sync::{Arc, Mutex};
-use tokio::runtime::Runtime;
-use tokio_postgres::{Client, NoTls};
+use tokio::task;
+use tokio_postgres::NoTls;
+use tokio::sync::mpsc::{self, Sender, Receiver};
+use tokio::sync::Mutex;
+#[macro_use]
+extern crate lazy_static;
 
-#[derive(Clone, StateData)]
-struct ConnState {
-    client: Arc<Mutex<Client>>,
+struct StatusChannel {
+    tx: Option<Sender<String>>,
+    rx: Option<Receiver<String>>,
 }
 
-impl ConnState {
-    fn new(client: Client) -> Self {
-        Self {
-            client: Arc::new(Mutex::new(client)),
-        }
+impl Deref for StatusChannel {
+    type Target = Option<Receiver<String>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.rx
     }
 }
 
-fn router(state: ConnState) -> Router {
-    let middleware = StateMiddleware::new(state);
-    let pipeline = single_middleware(middleware);
-    let (chain, pipelines) = single_pipeline(pipeline);
-    build_router(chain, pipelines, |route| {
-        route.get("/").to(register_user_agent);
+impl DerefMut for StatusChannel {
+    //type Target = Option<Receiver<String>>;
+
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.rx
+    }
+}
+
+impl StatusChannel {
+    fn new() -> Self {
+        let (tx, rx) = mpsc::channel(100);
+        Self {
+            tx: Some(tx),
+            rx: Some(rx)
+        }
+    }
+
+    fn get_sender(&self) -> Option<&Sender<String>> {
+        self.tx.as_ref()
+    }
+
+    fn get_receiver(&mut self) -> Option<&mut Receiver<String>> {
+        self.rx.as_mut()
+    }
+}
+
+lazy_static! {
+    static ref STATUS_CHANNEL: Arc<Mutex<StatusChannel>> = {
+        let s = Arc::new(Mutex::new(StatusChannel::new()));
+        s
+    };
+}
+
+fn router() -> Router {
+    build_simple_router(|route| {
+        route
+            .get("/")
+            .to_async(register_user_agent);
     })
 } 
 
-fn register_user_agent(state: State) -> Box<HandlerFuture> {
+async fn register_user_agent(state: State) -> HandlerResult {
     let user_agent = HeaderMap::borrow_from(&state)
         .get(USER_AGENT)
-        .map(|value| value.to_str().unwrap().to_string())
-        .unwrap_or_else(|| "<undefined>".into());
-    let conn = ConnState::borrow_from(&state);
-    let client_1 = conn.client.clone();
-    let client_2 = conn.client.clone();
+        .map(|value| value.to_str().unwrap())
+        .unwrap_or_else(|| "<undefined>");
 
-    let res = future::ok(())
-        .and_then(move |_| {
-            let mut client = client_1.lock().unwrap();
-            client.prepare("INSERT INTO agents (agent) VALUES ($1)
-                           RETURNING agent")
-        })
-        .and_then(move |statement| {
-            let mut client = client_2.lock().unwrap();
-            client.query(&statement, &[&user_agent]).collect().map(|rows| {
-                rows[0].get::<_, String>(0)
-            })
-        })
-        .then(|res| {
-            let mut builder = Response::builder();
-            let body = {
-                match res {
-                    Ok(value) => {
-                        let value = format!("User-Agent: {}", value);
-                        builder.status(StatusCode::OK);
-                        value.into()
-                    },
-                    Err(err) => {
-                        builder.status(StatusCode::INTERNAL_SERVER_ERROR);
-                        err.to_string().into()
-                    },
-                }
-        };
-        let response = builder.body(body).unwrap();
-        Ok((state, response))
-        });
-    Box::new(res)
+    let mutex_sender = STATUS_CHANNEL.lock().await;
+    let sender = mutex_sender.get_sender().unwrap();
+    let (status, body) = match sender.send(user_agent.to_string()).await {
+        Ok(_) => {
+            (StatusCode::OK,
+            format!("User-Agent: {}",user_agent))
+        }
+        Err(err) => {
+            (StatusCode::INTERNAL_SERVER_ERROR,
+            err.to_string())
+        }
+    };
+
+    let res = create_response(
+        &state,
+        status,
+        TEXT_HTML_UTF_8,
+        body);
+    Ok((state, res))
 }
 
-fn main() -> Result<(), Error> {
-    let mut runtime = Runtime::new();
-    let handshake = tokio_postgres::connect("postgres://postgres@localhost:5432", NoTls);
-    let (mut client, connection) = runtime.block_on(handshake)?;
-    runtime.spawn(connection.map_err(drop));
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    let (client, connection) =
+        tokio_postgres::connect("postgres://postgres@localhost:5432", NoTls).await?;
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
 
     let execute = client.batch_execute(
         "CREATE TABLE IF NOT EXISTS agents (
             agent TEXT NOT NULL,
             timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );");
-    runtime.block_on(execute)?;
+    task::spawn_blocking(move || execute).await?;
 
-    let state = ConnState::new(client);
-    let router = router(state);
+    let mut rx_mutex = STATUS_CHANNEL.lock().await;
+    let rx = &mut rx_mutex.get_receiver().unwrap();
+    
+    tokio::spawn(async {
+        while let Some(user_agent) = rx.recv().await {
+            client.query("INSERT INTO agents (agent) VALUES ($1) RETURNING agent", 
+                         &[&user_agent])
+                .await.unwrap();
+        }
+    });
 
     let addr = "127.0.0.1:7878";
     println!("Listening for requests at http://{}", addr);
-    gotham::start_on_executor(addr, router, runtime.executor());
-    runtime
-        .shutdown_on_idle()
-        .wait()
-        .map_err(|()| format_err!("can't wait for the runtime"));
+    gotham::start(addr, router()).unwrap();
+
+    Ok(())
 }
