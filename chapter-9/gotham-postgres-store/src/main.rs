@@ -94,15 +94,8 @@ fn main() -> Result<(), Error> {
         tokio_postgres::connect("postgres://postgres@localhost:5432", NoTls);
     let (client, connection) = rt.block_on(handshake)?;
     rt.spawn(async move {
-        match connection.await {
-            Ok(res) => {
-                trace!("Connected to database");
-                Ok(res)
-            }
-            Err(e) => {
-                error!("Connection error: {}", e);
-                Err(e)
-            }
+        if let Err(e) = connection.await {
+            error!("Connection error: {}", e);
         }
     });
     rt.block_on(async {
