@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::sync::Once;
+use std::borrow::BorrowMut;
 use failure::Error;
 use gotham::handler::HandlerResult;
 use gotham::router::Router;
@@ -12,45 +13,34 @@ use hyper::header::{HeaderMap, USER_AGENT};
 use tokio::runtime::Runtime;
 use tokio_postgres::NoTls;
 use tokio::sync::mpsc::{self, Sender, Receiver};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use tracing::{instrument, trace, info, error};
 use tracing_subscriber;
 use tracing_subscriber::prelude::*;
 use console_subscriber;
-#[macro_use]
-extern crate lazy_static;
 
-struct StatusChannel {
-    tx: Sender<String>,
-    rx: Receiver<String>,
-}
+static mut SENDER: Option<RwLock<Sender<String>>> = None;
+static mut RECEIVER: Option<Box<Mutex<Receiver<String>>>> = None;
+static INIT: Once = Once::new();
 
-impl StatusChannel {
-    fn new() -> Self {
-        let (tx, rx) = mpsc::channel(100);
-        Self {
-            tx,
-            rx
+fn init_channel(size: usize) {
+    INIT.call_once(|| {
+        let (tx, rx) = mpsc::channel(size);
+        unsafe {
+            *SENDER.borrow_mut() = Some(RwLock::new(tx));
+            *RECEIVER.borrow_mut() = Some(Box::new(Mutex::new(rx)));
         }
-    }
-
-    fn get_sender(&self) -> &Sender<String> {
-        &self.tx
-    }
-
-    fn get_receiver(&mut self) -> &mut Receiver<String> {
-        &mut self.rx
-    }
+    });
 }
 
-lazy_static! {
-    static ref STATUS_CHANNEL: Arc<Mutex<StatusChannel>> = {
-        let s = Arc::new(Mutex::new(StatusChannel::new()));
-        s
-    };
+fn get_sender<'a>() -> &'a RwLock<Sender<String>> {
+    unsafe { SENDER.as_ref().unwrap() }
 }
 
-#[instrument]
+fn get_receiver<'a>() -> &'a mut Mutex<Receiver<String>> {
+    unsafe { RECEIVER.as_mut().unwrap() }
+}
+
 fn router() -> Router {
     build_simple_router(|route| {
         route
@@ -66,8 +56,7 @@ async fn register_user_agent(state: State) -> HandlerResult {
         .map(|value| value.to_str().unwrap())
         .unwrap_or_else(|| "<undefined>");
 
-    let mutex_sender = STATUS_CHANNEL.lock().await;
-    let sender = mutex_sender.get_sender();
+    let sender = get_sender().read().await;
     trace!("Sending to channel");
     let (status, body) = match sender.send(user_agent.to_string()).await {
         Ok(_) => {
@@ -92,6 +81,8 @@ async fn register_user_agent(state: State) -> HandlerResult {
 }
 
 fn main() -> Result<(), Error> {
+    init_channel(100);
+
     let console_layer = console_subscriber::spawn();
     tracing_subscriber::registry()
         .with(console_layer)
@@ -123,8 +114,7 @@ fn main() -> Result<(), Error> {
         trace!("Table created");
     });
     rt.spawn(async move {
-        let mut rx_mutex = STATUS_CHANNEL.lock().await;
-        let rx = rx_mutex.get_receiver();
+        let mut rx = get_receiver().lock().await;
         while let Some(user_agent) = rx.recv().await {
             client.query("INSERT INTO agents (agent) VALUES ($1) RETURNING agent", 
                          &[&user_agent])
