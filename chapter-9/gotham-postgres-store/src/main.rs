@@ -15,6 +15,8 @@ use tokio::sync::mpsc::{self, Sender, Receiver};
 use tokio::sync::Mutex;
 use tracing::{instrument, trace, info, error};
 use tracing_subscriber;
+use tracing_subscriber::prelude::*;
+use console_subscriber;
 #[macro_use]
 extern crate lazy_static;
 
@@ -90,14 +92,11 @@ async fn register_user_agent(state: State) -> HandlerResult {
 }
 
 fn main() -> Result<(), Error> {
-    let subscriber = tracing_subscriber::fmt()
-        .compact()
-        .with_file(true)
-        .with_line_number(true)
-        .with_thread_ids(true)
-        .with_target(false)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)?;
+    let console_layer = console_subscriber::spawn();
+    tracing_subscriber::registry()
+        .with(console_layer)
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     let rt = Runtime::new().unwrap();
     let handshake =
