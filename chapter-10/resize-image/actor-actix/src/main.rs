@@ -1,17 +1,15 @@
+use std::thread;
 use std::io::{Error, ErrorKind};
 use failure::Fail;
 use serde_json::Value;
-use futures::StreamExt;
+use futures::{Future, StreamExt, FutureExt, TryFutureExt};
 use hyper::{self, Server, Body, Response, Method, Request, StatusCode};
-use hyper::service::{make_service_fn, service_fn};
-use futures::FutureExt;
-use futures::TryFutureExt;
-use std::future::Future;
+use hyper::service::service_fn;
 use tracing::info;
 use tracing_subscriber;
 use actix::{Actor, Addr};
 use actix::sync::SyncArbiter;
-use uuid::Uuid;
+use tower::make::Shared;
 
 mod actors;
 
@@ -21,9 +19,8 @@ use self::actors::{
     resize::{Resize, ResizeActor},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct State {
-    id: Uuid,
     resize: Addr<ResizeActor>,
     count: Addr<CountActor>,
     log: Addr<LogActor>,
@@ -62,7 +59,6 @@ async fn microservice_handler(state: &State, req: Request<Body>)
     match (req.method(), req.uri().path().to_owned().as_ref()) {
         (&Method::GET, "/") => {
             count_up(state, "/").await?;
-            info!(state = ?state);
             Ok(Response::new(INDEX.into()))
         },
         (&Method::POST, "/resize") => {
@@ -135,21 +131,22 @@ async fn main() -> Result<()> {
     .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let resize = SyncArbiter::start(2, || ResizeActor);
+    let cpu_core_count = thread::available_parallelism()?.get();
+    info!(cpu_core_count = %cpu_core_count);
+
+    let resize = SyncArbiter::start(cpu_core_count, || ResizeActor);
     let count = CountActor::new().start();
     let log = LogActor::new().start();
-    let state = State { id: Uuid::new_v4(), resize, count, log };
+    let state = State { resize, count, log };
 
-    let make_service = make_service_fn(move |_| { 
-        async move {
-            Ok::<_, GenericError>(service_fn(move |req| {
-                let state = state.clone();
-                async move { 
-                    microservice_handler(&state, req).await
-                }
-            }))
-        }
-    });
+    let make_service = Shared::new(
+        service_fn(move |req| {
+            let state = state.clone();
+            async move {
+                microservice_handler(&state, req).await
+            }
+        })
+    );
 
     let addr = ([127, 0, 0, 1], 8080).into();
     let server = Server::bind(&addr).serve(make_service); 
