@@ -1,0 +1,22 @@
+[package]
+name = "resize-image"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix = "0.13.0"
+failure = "0.1.8"
+futures = "0.3.25"
+hyper = { version = "0.14.23", features = ["full"] }
+image = "0.24.5"
+queryst = "2.1.0"
+serde = "1.0.147"
+serde_derive = "1.0.147"
+serde_json = "1.0.87"
+syslog = "6.0.1"
+tokio = { version = "1.21.2", features = ["full"] }
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"
+uuid = { version = "1.2.2", features = ["v4", "fast-rng"] }
