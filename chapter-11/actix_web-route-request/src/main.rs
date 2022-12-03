@@ -1,12 +1,10 @@
-use std::rc::Rc;
 use actix_files as fs;
-use actix_identity::{Identity, IdentityMiddleware};
+use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, middleware::Logger, web, App, HttpServer};
 
-use crate::request_count::midleware::Counter;
-use crate::request_count::handlers;
-
+use request_count::middleware::Counter;
+use request_count::handlers;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
