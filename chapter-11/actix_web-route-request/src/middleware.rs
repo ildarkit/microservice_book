@@ -1,3 +1,4 @@
+use std::fmt;
 use std::cell::RefCell;
 use std::rc::Rc;
 use actix_web::dev::{
@@ -8,12 +9,19 @@ use actix_web::dev::{
     ServiceRequest,
     ServiceResponse
 };
-use actix_web::{HttpRequest, Result, Error, FromRequest};
+use actix_web::{HttpMessage, HttpRequest, Result, Error, FromRequest};
 use futures::future::LocalBoxFuture;
+use futures::FutureExt;
 use core::future::{ready, Ready};
 
-#[derive(Default)]
-struct CountState(RefCell<i64>);
+#[derive(Clone)]
+pub struct CountState(RefCell<i64>);
+
+impl fmt::Display for CountState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.borrow())
+    }
+}
 
 pub struct CounterMiddleware<S> {
     count: Rc<CountState>,
@@ -34,10 +42,10 @@ impl<S, B> Service<ServiceRequest> for CounterMiddleware<S>
         let count = self.count.clone();
         let service = self.service.clone();
         async move {
-            let value = count.0.borrow();
+            let value = *count.0.borrow();
             *count.0.borrow_mut() = value + 1;
-            req.extention_mut()
-                .insert::<CountState>(count);
+            req.extensions_mut()
+                .insert::<Rc<CountState>>(count);
             let res = service.call(req).await?;
             Ok(res)
         }
@@ -61,23 +69,32 @@ impl <S, B> Transform<S, ServiceRequest> for Counter
 
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(CounterMiddleware {
-            count: Rc::new(CountState::default()),
+            count: Rc::new(CountState(RefCell::new(0))),
             service: Rc::new(service)
         }))
     }
 }
 
-pub struct RequestCount(CountState);
+pub struct RequestCount(Rc<CountState>);
 
 impl FromRequest for RequestCount {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, payload: &mut Payload)
+    fn from_request(req: &HttpRequest, _payload: &mut Payload)
         -> Self::Future
     {
-        let count = req.extensions().get::<CountState>().cloned();
-        ready(count)
+        let count = req.extensions()
+            .get::<Rc<CountState>>()
+            .cloned()
+            .unwrap();
+        ready(Ok(RequestCount(count)))
+    }
+}
+
+impl fmt::Display for RequestCount {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.clone())
     }
 }
 

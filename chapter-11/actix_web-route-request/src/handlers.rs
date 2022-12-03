@@ -1,12 +1,11 @@
 use serde_derive::{Deserialize, Serialize};
-use actix_web::{Error, HttpRequest, HttpResponse, web::Form};
-use actix_web::http::{header, StatusCode};
-use std::future::Future;
-use failure::format_err;
-use anyhow::{Result, Context};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web::Form, Responder};
+use actix_identity::Identity;
+use actix_web::http::header;
 
 use crate::client;
 use crate::middleware::RequestCount;
+use crate::error::ApiError;
 
 #[derive(Deserialize, Serialize)]
 pub struct UserForm {
@@ -30,71 +29,67 @@ pub struct NewComment {
     pub text: String,
 }
 
-pub async fn signup(params: Form<UserForm>) -> Result<HttpResponse> {
-    let res = client::post_request::<UserForm, ()>("http://127.0.0.1:8080/signup", 
-                           params.into_inner()) 
-        .await
-        .map(|res| {
-            match res {
-                Ok(_) => {
-                    HttpResponse::Found()
-                        .insert_header((header::LOCATION, "/login.html"))
-                        .finish()
-                },
-                Err(err) => {
-                    
-                },
-            }
-        });
-    res
+fn redirect(url: &str) -> HttpResponse {
+    HttpResponse::Found()
+        .append_header((header::LOCATION, url))
+        .finish()
+}
+
+pub async fn signup(params: Form<UserForm>) -> Result<impl Responder, ApiError> {
+    client::post_request::<UserForm, _>(
+        "http://127.0.0.1:8001/signup",
+        params.into_inner()
+    )
+    .await?;
+    
+    Ok(redirect("/login.html"))
 }
 
 pub async fn signin(req: HttpRequest, params: Form<UserForm>)
-    -> Result<HttpResponse, Error>
+    -> Result<impl Responder, ApiError>
 {
-    let res = client::post_request("http://127.0.0.1:8080/signin",
-                           params.into_inner())
-        .map(move |id: UserId| {
-            req.remember(id.id);
-            HttpResponse::build_from(&req)
-                .status(StatusCode::FOUND)
-                .header(header::LOCATION, "/comments.html")
-                .finish()
-        });
-    Ok(res)
+    let user = client::post_request::<UserForm, UserId>(
+        "http://127.0.0.1:8001/signin",
+        params.into_inner()
+    )
+    .await?;
+
+    Identity::login(&req.extensions(), user.id)?;
+    
+    Ok(redirect("/comments.html"))
 }
 
-pub async fn new_comment(req: HttpRequest, params: Form<AddComment>)
-    -> Result<HttpResponse, Error>
+pub async fn new_comment(
+    params: Form<AddComment>,
+    user: Option<Identity>
+)
+    -> Result<impl Responder, ApiError>
 {
-    let res = req.identity()
-        .ok_or(format_err!("not authorized").into())
-        .into_future()
-        .and_then(move |uid| {
-            let params = NewComment {
-                uid,
-                text: params.into_inner().text,
-            };
-            client::post_request::<_, ()>("http:/127.0.0.1:8080/new_comment",
-                                  params)
-        })
-    .then(move |_| {
-        HttpResponse::build_from(&req)
-            .status(StatusCode::FOUND)
-            .header(header::LOCATION, "/comments.html")
-            .finish()
-    });
-    Ok(res)
+    let mut url = "/comments.html";
+
+    if let Some(user) = user {
+        let params = NewComment {
+            uid: user.id()?,
+            text: params.into_inner().text,
+        };
+        client::post_request::<_, ()>(
+            "http:/127.0.0.1:8003/new_comment",
+            params
+        )
+        .await?;
+    } else {
+        url = "/login.html";
+    }
+
+    Ok(redirect(url))
 }
 
-pub async fn comments(_req: HttpRequest) -> Result<HttpResponse, Error> {
-    let res = client::get_request("http://127.0.0.1:8080/comments")
-        .map(|data| {
-            HttpResponse::Ok().body(data)
-        });
-    Ok(res)
+pub async fn comments(_req: HttpRequest) -> Result<impl Responder, ApiError> {
+    let result = client::get_request("http://127.0.0.1:8003/list")
+        .await?;
+    Ok(HttpResponse::Ok().body(result))
 }
 
-pub fn counter(req: HttpRequest, req_count: RequestCount) -> String {
-    format!("{}", req_count.0.borrow())
+pub async fn counter(req_count: RequestCount) -> impl Responder {
+    format!("{}", req_count)
 }
