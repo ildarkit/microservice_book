@@ -1,29 +1,16 @@
-use awc::{Client, error::{SendRequestError, PayloadError, JsonPayloadError}};
-use actix_web::{Responder, web::Bytes};
-use thiserror::Error;
+use awc::Client;
+use actix_web::web::Bytes;
 use serde::{Serialize, Deserialize};
-use futures::{future::Future, TryFutureExt, TryStreamExt, StreamExt};
 
-#[derive(Error, Debug)]
-pub enum ClientError {
-    #[error("Client request fail")]
-    SendError { source: SendRequestError },
-
-    #[error(transparent)]
-    ResponseError(#[from] PayloadError),
-
-    #[error(transparent)]
-    JsonResponseError(#[from] JsonPayloadError)
-}
+use crate::error::ClientError;
 
 pub async fn get_request(url: &str) -> Result<Bytes, ClientError> {
-    Client::default().get(url)
+    let res = Client::default().get(url)
         .send()
-        .await
-        .map_err(|err| ClientError::SendError {source: err})? 
+        .await?
         .body()
-        .await
-        .map_err(ClientError::ResponseError)
+        .await?;
+    Ok(res)
 }
 
 pub async fn post_request<T, O>(url: &str, params: T) -> Result<O, ClientError>
@@ -31,12 +18,11 @@ where
     T: Serialize,
     O: for <'de> Deserialize<'de> + 'static,
 {
-    Client::default().post(url)
+    let res = Client::default().post(url)
         .send_form(&params)
-        .await
-        .map_err(|err| ClientError::SendError {source: err})?
+        .await?
         .json::<O>()
-        .await
-        .map_err(ClientError::JsonResponseError)
+        .await?;
+    Ok(res)
 }
 
