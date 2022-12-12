@@ -93,11 +93,11 @@ impl From<anyhow::Error> for ApiError {
 
 impl ApiError {
     fn message(&self) -> String {
-        self.to_string(&self.message)
+        self.to_string(self.message)
     }
 
     fn cause(&self) -> String {
-        self.to_string(&self.cause)
+        self.to_string(self.cause)
     }
 
     fn to_string(&self, value: &Option<String>) -> String {
