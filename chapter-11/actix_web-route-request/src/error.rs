@@ -1,4 +1,3 @@
-use std::fmt;
 use std::error::Error;
 use thiserror;
 use anyhow;
@@ -30,15 +29,6 @@ impl ApiError {
         )
     }
 }
-
-/*impl std::fmt::Display for ApiError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ApiError::HttpError(e, ctx) => write!(f, "{ctx}\n Caused by: {e}"),
-            ApiError::UnexpectedError(e) => write!(f, "{e}"),
-        }
-    }
-}*/
 
 impl ResponseError for ApiError {
     fn status_code(&self) -> StatusCode {
