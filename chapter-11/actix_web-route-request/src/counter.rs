@@ -3,7 +3,7 @@ use futures::Future;
 use std::cell::RefCell;
 
 use crate::cache::CacheLink;
-use crate::error::{ClientHttpError, ApiError};
+use crate::client::ClientHttpError;
 
 fn boxed<I, E, F>(fut: F) -> Box<dyn Future<Output = I>>
     where
@@ -36,7 +36,7 @@ impl CountState {
     }
 
     pub async fn cache<F>(&self, path: &str, fut: F)
-        -> Result<Vec<u8>, ApiError>
+        -> Result<Vec<u8>, ClientHttpError>
     where
         F: Future<Output = Result<Vec<u8>, ClientHttpError>> + 'static,
     {
@@ -47,7 +47,7 @@ impl CountState {
             None => {
                 let data = fut.await?;
                 link.set_value(&path, &data).await;
-                data
+                data.to_vec()
             },
         };
         Ok(res)
