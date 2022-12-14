@@ -21,7 +21,9 @@ impl Actor for CacheActor {
 }
 
 #[derive(thiserror::Error, Debug)]
-enum CacheError {  
+pub enum CacheError {  
+    #[error(transparent)]
+    MailboxError(#[from] MailboxError),
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error)
 }
@@ -88,8 +90,8 @@ impl CacheLink {
         self.addr.send(msg).await
             .map_err(|e| { 
                 error!("{}", e);
-                Ok::<Option<Vec<u8>>, CacheError>(None) 
-            }).unwrap()
+                e
+            })?
     }
 
     pub async fn set_value(&self, path: &str, value: &[u8]) -> Result<(), CacheError> {
@@ -97,10 +99,10 @@ impl CacheLink {
             path: path.to_owned(),
             content: value.to_owned(),
         };
-        self.addr.send(msg).await.map_err(|e| {
-            error!("{}", e);
-            e
-        });
-        Ok(())
+        self.addr.send(msg).await
+            .map_err(|e| {
+                error!("{}", e);
+                e
+            })?
     }
 }

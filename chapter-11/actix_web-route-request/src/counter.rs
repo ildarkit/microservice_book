@@ -1,16 +1,10 @@
+use log;
 use std::fmt;
 use futures::Future;
 use std::cell::RefCell;
 
 use crate::cache::CacheLink;
 use crate::client::ClientHttpError;
-
-fn boxed<I, E, F>(fut: F) -> Box<dyn Future<Output = I>>
-    where
-        F: Future<Output = I> + 'static,
-{
-    Box::new(fut)
-}
 
 #[derive(Clone)]
 pub struct CountState {
@@ -26,7 +20,7 @@ impl CountState {
         }
     }
 
-    fn get_count(&self) -> i64 {
+    pub fn get_count(&self) -> i64 {
         *self.counter.borrow()
     }
 
@@ -42,14 +36,23 @@ impl CountState {
     {
         let link = self.cache.clone();
         let path = path.to_owned();
-        let res = match link.get_value(&path).await.unwrap() {
-            Some(cached) => cached,
-            None => {
+        let res = link.get_value(&path).await;
+        let res =
+            if res.is_err() {
+                res.map_err(|e| {
+                    let ctx = "An unexpected error occured when getting from the cache";
+                    log::warn!("{ctx}\n Caused by:\n\t{e}"); 
+                }).ok();
                 let data = fut.await?;
-                link.set_value(&path, &data).await;
+                link.set_value(&path, &data).await
+                    .map_err(|e| {
+                        let ctx = "An unexpected error occured while storing to the cache";
+                        log::warn!("{ctx}\n Caused by:\n\t{e}");
+                    }).ok();
                 data.to_vec()
-            },
-        };
+            } else {
+                res.unwrap().unwrap()
+            };
         Ok(res)
     }
 }
