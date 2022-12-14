@@ -5,7 +5,7 @@ use actix_web::http::header;
 
 use crate::client;
 use crate::middleware::RequestCount;
-use crate::error::ApiError;
+use crate::error::{ApiError, context_err};
 
 #[derive(Deserialize, Serialize)]
 pub struct UserForm {
@@ -40,7 +40,8 @@ pub async fn signup(params: Form<UserForm>) -> Result<impl Responder, ApiError> 
         "http://127.0.0.1:8001/signup",
         params.into_inner()
     )
-    .await?;
+    .await
+    .map_err(|e| context_err(e, "Failed to signup"))?;
     
     Ok(redirect("/login.html"))
 }
@@ -52,7 +53,8 @@ pub async fn signin(req: HttpRequest, params: Form<UserForm>)
         "http://127.0.0.1:8001/signin",
         params.into_inner()
     )
-    .await?;
+    .await
+    .map_err(|e| context_err(e, "Failed to signin"))?;
 
     Identity::login(&req.extensions(), user.id)?;
     
@@ -76,7 +78,8 @@ pub async fn new_comment(
             "http:/127.0.0.1:8003/new_comment",
             params
         )
-        .await?;
+        .await
+        .map_err(|e| context_err(e, "Failed to add comment"))?;
     } else {
         url = "/login.html";
     }
@@ -84,12 +87,17 @@ pub async fn new_comment(
     Ok(redirect(url))
 }
 
-pub async fn comments(_req: HttpRequest) -> Result<impl Responder, ApiError> {
-    let result = client::get_request("http://127.0.0.1:8003/list")
-        .await?;
-    Ok(HttpResponse::Ok().body(result))
+pub async fn comments(_req: HttpRequest, count_state: RequestCount)
+    -> Result<impl Responder, ApiError>
+{
+    let fut = client::get_request("http://127.0.0.1:8003/list");
+    let data = count_state.cache("/list", fut)
+        .await
+        .map_err(|e| context_err(e, "Failed to get comments"))?;
+
+    Ok(HttpResponse::Ok().body(data))
 }
 
-pub async fn counter(req_count: RequestCount) -> impl Responder {
-    format!("{}", req_count)
+pub async fn counter(count_state: RequestCount) -> impl Responder {
+    format!("{}", count_state)
 }
