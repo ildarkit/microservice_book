@@ -42,7 +42,7 @@ async fn main() -> std::io::Result<()> {
             )
             .route("stats/counter", web::get().to(handlers::counter))
             .service(
-                fs::Files::new("/static/", ".").index_file("index.html")
+                fs::Files::new("/", "./static").index_file("index.html")
             )
     })
     .workers(1)
