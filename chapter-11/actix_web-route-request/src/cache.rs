@@ -1,4 +1,3 @@
-use log::error;
 use thiserror;
 use anyhow::{self, Context};
 use actix::prelude::*;
@@ -87,11 +86,7 @@ impl CacheLink {
         let msg = GetValue {
             path: path.to_owned(),
         };
-        self.addr.send(msg).await
-            .map_err(|e| { 
-                error!("{}", e);
-                e
-            })?
+        self.addr.send(msg).await?
     }
 
     pub async fn set_value(&self, path: &str, value: &[u8]) -> Result<(), CacheError> {
@@ -99,10 +94,6 @@ impl CacheLink {
             path: path.to_owned(),
             content: value.to_owned(),
         };
-        self.addr.send(msg).await
-            .map_err(|e| {
-                error!("{}", e);
-                e
-            })?
+        self.addr.send(msg).await?
     }
 }

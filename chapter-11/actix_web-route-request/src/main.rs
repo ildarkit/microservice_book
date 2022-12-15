@@ -1,18 +1,27 @@
 use actix_files as fs;
+use actix::prelude::SyncArbiter;
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, middleware::Logger, web, App, HttpServer};
 
+use request_count::counter::CountState;
 use request_count::middleware::Counter;
 use request_count::handlers;
+use request_count::cache::{CacheLink, CacheActor};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=info");
-    env_logger::init();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let secret = Key::generate();
 
+    let addr = SyncArbiter::start(3, || {
+        CacheActor::new("redis://127.0.0.1:6379", 10)
+    });
+    let cache = CacheLink::new(addr); 
+
     HttpServer::new(move || {
+        let state = CountState::new(cache.clone());
+        let data = web::Data::new(state);
         App::new()
             .wrap(IdentityMiddleware::default())
             .wrap(
@@ -23,6 +32,7 @@ async fn main() -> std::io::Result<()> {
             )
             .wrap(Logger::default())
             .wrap(Counter)
+            .app_data(web::Data::clone(&data))
             .service(
                 web::scope("/api")
                     .route("/singup", web::post().to(handlers::signup))

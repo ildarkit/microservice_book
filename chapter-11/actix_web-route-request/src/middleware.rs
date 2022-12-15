@@ -1,30 +1,19 @@
-use std::fmt;
-use std::cell::RefCell;
 use std::rc::Rc;
 use actix_web::dev::{
     forward_ready,
-    Payload,
     Transform,
     Service,
     ServiceRequest,
     ServiceResponse
 };
-use actix_web::{HttpMessage, HttpRequest, Result, Error, FromRequest};
+use actix_web::{web, Result, Error};
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use core::future::{ready, Ready};
 
-#[derive(Clone)]
-pub struct CountState(RefCell<i64>);
-
-impl fmt::Display for CountState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.borrow())
-    }
-}
+use crate::counter::CountState;
 
 pub struct CounterMiddleware<S> {
-    count: Rc<CountState>,
     service: Rc<S>,
 }
 
@@ -39,13 +28,10 @@ impl<S, B> Service<ServiceRequest> for CounterMiddleware<S>
     forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let count = self.count.clone();
+        let state = req.app_data::<web::Data<CountState>>().unwrap();
+        state.update_count();
         let service = self.service.clone();
-        async move {
-            let value = *count.0.borrow();
-            *count.0.borrow_mut() = value + 1;
-            req.extensions_mut()
-                .insert::<Rc<CountState>>(count);
+        async move { 
             let res = service.call(req).await?;
             Ok(res)
         }
@@ -69,39 +55,7 @@ impl <S, B> Transform<S, ServiceRequest> for Counter
 
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(CounterMiddleware {
-            count: Rc::new(CountState(RefCell::new(0))),
-            service: Rc::new(service)
+            service: Rc::new(service),
         }))
-    }
-}
-
-pub struct RequestCount(Rc<CountState>);
-
-impl FromRequest for RequestCount {
-    type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
-
-    fn from_request(req: &HttpRequest, _payload: &mut Payload)
-        -> Self::Future
-    {
-        let count = req.extensions()
-            .get::<Rc<CountState>>()
-            .cloned()
-            .unwrap();
-        ready(Ok(RequestCount(count)))
-    }
-}
-
-impl fmt::Display for RequestCount {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.clone())
-    }
-}
-
-impl std::ops::Deref for RequestCount {
-    type Target = CountState;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 } 

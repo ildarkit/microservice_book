@@ -1,10 +1,10 @@
 use serde_derive::{Deserialize, Serialize};
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, web::Form, Responder};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web, Responder};
 use actix_identity::Identity;
 use actix_web::http::header;
 
 use crate::client;
-use crate::middleware::RequestCount;
+use crate::counter::CountState;
 use crate::error::{ApiError, context_err};
 
 #[derive(Deserialize, Serialize)]
@@ -35,7 +35,7 @@ fn redirect(url: &str) -> HttpResponse {
         .finish()
 }
 
-pub async fn signup(params: Form<UserForm>) -> Result<impl Responder, ApiError> {
+pub async fn signup(params: web::Form<UserForm>) -> Result<impl Responder, ApiError> {
     client::post_request::<UserForm, _>(
         "http://127.0.0.1:8001/signup",
         params.into_inner()
@@ -46,7 +46,7 @@ pub async fn signup(params: Form<UserForm>) -> Result<impl Responder, ApiError> 
     Ok(redirect("/login.html"))
 }
 
-pub async fn signin(req: HttpRequest, params: Form<UserForm>)
+pub async fn signin(req: HttpRequest, params: web::Form<UserForm>)
     -> Result<impl Responder, ApiError>
 {
     let user = client::post_request::<UserForm, UserId>(
@@ -62,7 +62,7 @@ pub async fn signin(req: HttpRequest, params: Form<UserForm>)
 }
 
 pub async fn new_comment(
-    params: Form<AddComment>,
+    params: web::Form<AddComment>,
     user: Option<Identity>
 )
     -> Result<impl Responder, ApiError>
@@ -87,7 +87,7 @@ pub async fn new_comment(
     Ok(redirect(url))
 }
 
-pub async fn comments(_req: HttpRequest, count_state: RequestCount)
+pub async fn comments(_req: HttpRequest, count_state: web::Data<CountState>)
     -> Result<impl Responder, ApiError>
 {
     let fut = client::get_request("http://127.0.0.1:8003/list");
@@ -98,6 +98,6 @@ pub async fn comments(_req: HttpRequest, count_state: RequestCount)
     Ok(HttpResponse::Ok().body(data))
 }
 
-pub async fn counter(count_state: RequestCount) -> impl Responder {
-    format!("{}", count_state)
+pub async fn counter(count_state: web::Data<CountState>) -> impl Responder {
+    format!("{}", count_state.get_ref())
 }
