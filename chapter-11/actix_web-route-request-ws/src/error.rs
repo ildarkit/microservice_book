@@ -3,7 +3,7 @@ use thiserror;
 use anyhow;
 use serde::Serialize;
 use awc::error::SendRequestError;
-use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
+use actix_web::{self, error::ResponseError, http::StatusCode, HttpResponse};
 
 use crate::client::ClientHttpError;
 
@@ -16,14 +16,16 @@ struct ApiErrorResponse {
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
     #[error("{1}")]
-    HttpError(#[source] ClientHttpError, String),
+    ClientError(#[source] ClientHttpError, String),
     #[error(transparent)]
-    UnexpectedError(#[from] anyhow::Error),
+    UserIdentityError(#[from] anyhow::Error),
+    #[error(transparent)]
+    UnexpectedError(#[from] actix_web::Error),
 }
 
 impl ApiError {
     fn new(e: ClientHttpError, ctx: &str) -> Self {
-        ApiError::HttpError(
+        ApiError::ClientError(
             e,
             ctx.into()
         )
@@ -33,7 +35,7 @@ impl ApiError {
 impl ResponseError for ApiError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ApiError::HttpError(
+            ApiError::ClientError(
                 ClientHttpError::SendError(SendRequestError::Url(_)),
                 _
             ) => {
