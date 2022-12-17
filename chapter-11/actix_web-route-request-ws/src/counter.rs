@@ -2,26 +2,34 @@ use log;
 use std::fmt;
 use futures::Future;
 use std::cell::RefCell;
+use actix::prelude::*;
 
 use crate::cache::CacheLink;
 use crate::client::ClientHttpError;
+use crate::repeater::RepeaterActor;
 
 #[derive(Clone)]
 pub struct CountState {
     counter: RefCell<i64>,
     cache: CacheLink,
+    repeater: Addr<RepeaterActor>,
 }
 
 impl CountState {
-    pub fn new(cache: CacheLink) -> Self {
+    pub fn new(cache: CacheLink, repeater: Addr<RepeaterActor>) -> Self {
         Self {
             counter: RefCell::default(),
             cache,
+            repeater,
         }
     }
 
     fn get_count(&self) -> i64 {
         *self.counter.borrow()
+    }
+
+    pub fn get_repeater(&self) -> Addr<RepeaterActor> {
+        self.repeater.clone()
     }
 
     pub fn update_count(&self) {
@@ -45,7 +53,7 @@ impl CountState {
                 }).ok();
                 let data = fut.await
                     .map_err(|e| {
-                        let ctx = "Failed to get response from service"; 
+                        let ctx = "Unexpected remote service error"; 
                         log::error!("{ctx}\n Caused by:\n\t{e}");
                         e
                     })?;
