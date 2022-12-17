@@ -1,5 +1,5 @@
 use actix_files as fs;
-use actix::prelude::SyncArbiter;
+use actix::prelude::*;
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, middleware::Logger, web, App, HttpServer};
@@ -8,6 +8,7 @@ use request_count::counter::CountState;
 use request_count::middleware::Counter;
 use request_count::handlers;
 use request_count::cache::{CacheLink, CacheActor};
+use request_count::repeater::RepeaterActor;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -18,9 +19,10 @@ async fn main() -> std::io::Result<()> {
         CacheActor::new("redis://127.0.0.1:6379", 10)
     });
     let cache = CacheLink::new(addr); 
+    let repeater = RepeaterActor::new().start();
 
     HttpServer::new(move || {
-        let state = CountState::new(cache.clone());
+        let state = CountState::new(cache.clone(), repeater.clone());
         let data = web::Data::new(state);
         App::new()
             .wrap(IdentityMiddleware::default())
@@ -44,6 +46,7 @@ async fn main() -> std::io::Result<()> {
             .service(
                 fs::Files::new("/", "./static").index_file("index.html")
             )
+            .route("/ws", web::get().to(handlers::ws_connect))
     })
     .workers(1)
     .bind(("127.0.0.1", 8080))?
