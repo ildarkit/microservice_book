@@ -30,6 +30,13 @@ impl ApiError {
             ctx.into()
         )
     }
+
+    fn get_cause(&self) -> String {
+        match self.source() {
+            Some(s) => s.to_string(),
+            None => "Unknown".into()
+        }
+    }
 }
 
 impl ResponseError for ApiError {
@@ -41,6 +48,10 @@ impl ResponseError for ApiError {
             ) => {
                 StatusCode::BAD_REQUEST
             },
+            ApiError::UnexpectedError(err) => {
+                let err = err.as_response_error();
+                err.status_code()
+            },
             _ => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
@@ -49,9 +60,9 @@ impl ResponseError for ApiError {
         HttpResponse::build(self.status_code())
             .json(ApiErrorResponse {
                 error: self.to_string(),
-                cause: self.source().unwrap().to_string(),
+                cause: self.get_cause(),
             })
-    }
+    } 
 }
 
 pub fn context_err(e: ClientHttpError, ctx: &str) -> ApiError {

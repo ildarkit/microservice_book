@@ -1,3 +1,4 @@
+use log::error;
 use actix::{
     Actor,
     ActorContext,
@@ -62,12 +63,16 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for NotifyActor {
             Ok(ws::Message::Pong(_)) => {
                 self.last_ping = Instant::now();
             }
-            Ok(ws::Message::Text(_)) => {},
-            Ok(ws::Message::Binary(_)) => {},
+            Ok(ws::Message::Text(_)) => (),
+            Ok(ws::Message::Binary(_)) => (),
             Ok(ws::Message::Close(_)) => {
                 ctx.stop();
             }
-            _ => {},
+            Ok(ws::Message::Continuation(_)) => {
+                ctx.stop();
+            }
+            Ok(ws::Message::Nop) => (),
+            Err(e) => error!("{e}"),
         }
     }
 }

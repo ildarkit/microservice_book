@@ -43,10 +43,10 @@ async fn main() -> std::io::Result<()> {
                     .route("/comments", web::get().to(handlers::comments))
             )
             .route("stats/counter", web::get().to(handlers::counter))
+            .route("/ws", web::get().to(handlers::ws_connect))
             .service(
                 fs::Files::new("/", "./static").index_file("index.html")
-            )
-            .route("/ws", web::get().to(handlers::ws_connect))
+            ) 
     })
     .workers(1)
     .bind(("127.0.0.1", 8080))?
