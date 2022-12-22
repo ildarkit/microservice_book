@@ -8,24 +8,23 @@ edition = "2021"
 [dependencies]
 actix = "0.13.0"
 actix-web = "4.2.1"
+anyhow = "1.0.68"
 askama = "0.11.1"
 chrono = "0.4.23"
 env_logger = "0.10.0"
 futures = "0.3.25"
 image = "0.24.5"
 indexmap = "1.9.2"
+lapin = "2.1.1"
 log = "0.4.17"
 queens-rock = "0.1.1"
 rmp-serde = "1.1.1"
 serde = "1.0.151"
 serde_derive = "1.0.151"
 serde_json = "1.0.91"
+thiserror = "1.0.38"
 tokio = "1.23.0"
 uuid = "1.2.2"
-
-[dependencies.lapin]
-version = "0.33.0"
-package = "lapin-futures"
 
 [[bin]]
 name = "rabbit-actix-server"
