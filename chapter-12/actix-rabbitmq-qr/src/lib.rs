@@ -1,14 +1,65 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+pub mod queue_actor;
+
+use actix::{Message, SystemRunner};
+use futures::Future;
+use lapin::{Connection, ConnectionProperties, Channel, Queue, Error as LapinError};
+use lapin::options::QueueDeclareOptions;
+use lapin::types::FieldTable;
+use serde_derive::{Deserialize, Serialize};
+use tokio::net::TcpStream;
+
+pub const REQUESTS: &str = "requests";
+pub const RESPONSES: &str = "responses";
+
+pub fn spawn_client(sys: &mut SystemRunner) -> Result<Channel<TcpStream>, Error> {
+    let addr = "127.0.0.1:5672".parse().unwrap();
+    let fut = TcpStream::connect(&addr)
+        .map_err(Error::from)
+        .and_then(|stream| {
+            let options = ConnectionProperties::default();
+            Connection::connect(stream, options).from_err::<Error>()
+        });
+    let (client, heartbeat) = sys.block_on(fut)?;
+    actix::spawn(heartbeat.map_err(drop));
+    let channel = sys.block_on(client.create_channel())?;
+    Ok(channel)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub fn ensure_queue(chan: &Channel<TcpStream>, name: &str)
+    -> impl Future<Output = Queue>
+{
+    let opts = QueueDeclareOptions {
+        auto_delete: true,
+        ..Default::defaut()
+    };
+    let table = FieldTable::new();
+    chan.queue_declare(name, opts, table)
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct QrRequest {
+    pub image: Vec<u8>,
+}
+
+impl Message for QrRequest {
+    type Result = ();
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum QrResponse {
+    Succeed(String),
+    Failed(String),
+}
+
+impl From<Result<String, Error>> for QrResponse {
+    fn from(res: Result<String, Error>) -> Self {
+        match res {
+            Ok(data) => QrResponse::Succeed(data),
+            Err(err) => QrResponse::Failed(err.to_string()),
+        }
     }
+}
+
+impl Message for QrResponse {
+    type Result = ();
 }
