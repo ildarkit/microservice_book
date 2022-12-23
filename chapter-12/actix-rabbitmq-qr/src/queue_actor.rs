@@ -68,7 +68,7 @@ impl<T: QueueHandler> QueueActor<T> {
 
 impl<T: QueueHandler> StreamHandler<Delivery, LapinError> for QueueActor<T> {
 
-    fn handler(&mut self, item: Delivery, ctx: &mut Context<Self>) {
+    fn handle(&mut self, item: Delivery, ctx: &mut Context<Self>) {
         debug!("Message received!");
         let fut = self.channel
             .basic_ack(item.delivery_tag, false)
@@ -96,7 +96,7 @@ impl<T> Message for SendMessage<T> {
 impl<T: QueueHandler> Handler<SendMessage<T::Outgoing>> for QueueActor<T> {
     type Result = TaskId;
 
-    fn handler(&mut self, msg: SendMessage<T::Outgoing>, ctx: &mut Self::Context)
+    fn handle(&mut self, msg: SendMessage<T::Outgoing>, ctx: &mut Self::Context)
         -> Self::Result
     {
         let corr_id = Uuid::new_v4().to_simple().to_string();
