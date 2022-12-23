@@ -1,4 +1,5 @@
 pub mod queue_actor;
+pub mod handlers;
 
 use actix::{Message, SystemRunner};
 use futures::Future;
