@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 actix = "0.13.0"
+actix-multipart = "0.4.0"
 actix-web = "4.2.1"
 anyhow = "1.0.68"
 askama = "0.11.1"
@@ -35,6 +36,3 @@ test = false
 name = "rabbit-actix-worker"
 path = "src/worker.rs"
 test = false
-
-[build-dependencies]
-askama = "0.11.1"
