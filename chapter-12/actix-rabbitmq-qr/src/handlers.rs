@@ -1,5 +1,7 @@
 use actix_web::error::MultipartError;
-use actix_web::multipart::MultipartItem;
+use actix_multipart::Multipart;
+use actix_web::{web, Error as WebError, HttpRequest, HttpResponse};
+use actix_rabbitmq_qr::state::tasks::Record;
 
 #[derive(Template)]
 #[template(path = "tasks.html")]
@@ -7,11 +9,11 @@ struct Tasks {
     tasks: Vec<Record>,
 }
 
-fn index(_: &HttpRequest<State>) -> HttpResponse {
+fn index(_: &HttpRequest) -> HttpResponse {
     HttpResponse::Ok().body("QR Parsing Microservice")
 }
 
-fn task(req: HttpRequest<State>) -> impl Future<Output = HttpResponse> {
+fn task(_req: HttpRequest, tasks: web::Data<>) -> impl Future<Output = HttpResponse> {
     let tasks: Vec<_> = req
         .state()
         .tasks
@@ -73,7 +75,7 @@ pub fn handle_multipart_item(item: MultipartItem<Payload>)
             )
         },
         MultipartItem::Nested(mp) => {
-            Box::new(mp.map(handle_multipart_item).flatten()),
-        }
+            Box::new(mp.map(handle_multipart_item).flatten())
+        },
     }
 }
