@@ -94,28 +94,30 @@ impl<T: QueueHandler> StreamHandler<Result<Delivery, LapinError>> for QueueActor
     )
     { 
         match item {
-            Ok(ref item) => {
+            Ok(item) => {
                 debug!("Message received!");
-                let fut = self.channel
-                    .basic_ack(
-                        item.delivery_tag,
+
+                match self.process_message(&item, ctx) {
+                    Ok(pair) => {
+                        if let Some((corr_id, data)) = pair {
+                            self.send_message(corr_id, data, ctx);
+                        }
+                    },
+                    Err(err) => {
+                        warn!("Message processing error: {}", err);
+                    },
+                }
+
+                let fut = async move {
+                    item.ack(
                         BasicAckOptions::default()
                     )
-                    .unwrap_or_else(|_| ());
-                ctx.spawn(wrap_future(fut));
+                    .await
+                    .unwrap_or_else(|_| ())
+                };
+                ctx.spawn(wrap_future(fut)); 
             },
-            Err(ref e) => error!("Message is not received:\n\t {e}"),
-        }
-
-        match self.process_message(item.unwrap(), ctx) {
-            Ok(pair) => {
-                if let Some((corr_id, data)) = pair {
-                    self.send_message(corr_id, data, ctx);
-                }
-            },
-            Err(err) => {
-                warn!("Message processing error: {}", err);
-            },
+            Err(e) => error!("Message is not received:\n\t {e}"),
         }
     }
 }
@@ -140,7 +142,7 @@ impl<T: QueueHandler> Handler<SendMessage<T::Outgoing>> for QueueActor<T> {
 
 impl<T: QueueHandler> QueueActor<T> {
 
-    fn process_message(&self, item: Delivery, _: &mut Context<Self>)
+    fn process_message(&self, item: &Delivery, _: &mut Context<Self>)
         -> Result<Option<(String, T::Outgoing)>, QueueActorError>
     {
         let corr_id = item.properties.correlation_id()
