@@ -8,17 +8,26 @@ use lapin::options::QueueDeclareOptions;
 use lapin::types::FieldTable;
 use serde_derive::{Deserialize, Serialize};
 use anyhow::Error;
+use lazy_static::lazy_static;
+use async_once::AsyncOnce;
 
 pub const REQUESTS: &str = "requests";
 pub const RESPONSES: &str = "responses";
 
-pub async fn spawn_client(addr: &str)
-    -> Result<Channel, LapinError>
-{
-    let options = ConnectionProperties::default();
-    let conn = Connection::connect(addr, options).await?;
-    let channel = conn.create_channel().await?;
-    Ok(channel)
+lazy_static!{
+    static ref CHANNEL: AsyncOnce<Channel> = AsyncOnce::new(
+        async {
+            let options = ConnectionProperties::default();
+            let addr = std::env::var("AMQP_ADDR")
+                .unwrap_or_else(|_| "amqp://127.0.0.1:5672".into());
+            let conn = Connection::connect(&addr, options).await.unwrap();
+            conn.create_channel().await.unwrap()
+        }
+    );
+}
+
+pub async fn get_channel() -> &'static Channel { 
+    CHANNEL.get().await
 }
 
 pub async fn ensure_queue(chan: &Channel, name: &str)

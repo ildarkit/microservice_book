@@ -1,4 +1,4 @@
-use super::{ensure_queue, spawn_client};
+use super::{ensure_queue, get_channel};
 use actix::fut::wrap_future;
 use actix::prelude::*;
 use lapin::options::{
@@ -6,13 +6,11 @@ use lapin::options::{
     BasicPublishOptions,
     BasicAckOptions};
 use lapin::protocol::BasicProperties;
-use lapin::{Channel, Error as LapinError};
+use lapin::{Error as LapinError};
 use lapin::message::Delivery;
 use lapin::types::FieldTable;
 use log::{debug, warn, error};
 use serde::{Deserialize, Serialize};
-use futures::FutureExt;
-use futures::future::TryFutureExt;
 use uuid::Uuid;
 use anyhow::{Error, Context as AnyhowContext};
 use amq_protocol_types::ShortString;
@@ -45,7 +43,6 @@ pub enum QueueActorError {
 }
 
 pub struct QueueActor<T: QueueHandler> {
-    channel: Channel,
     handler: T,
 }
 
@@ -57,10 +54,10 @@ impl<T: QueueHandler> Actor for QueueActor<T> {
 
 impl<T: QueueHandler> QueueActor<T> {
 
-    pub async fn new(handler: T, addr: &str)
+    pub async fn new(handler: T)
         -> Result<Addr<Self>, Error>
     {
-        let channel = spawn_client(addr).await?;
+        let channel = get_channel().await;
         let chan = channel.clone();
         ensure_queue(&chan, handler.outgoing()).await?;
 
@@ -80,7 +77,7 @@ impl<T: QueueHandler> QueueActor<T> {
 
         let addr = QueueActor::create(move |ctx| {
             ctx.add_stream(stream);
-            Self { channel, handler }
+            Self { handler }
         });
         Ok(addr)
     }
@@ -96,7 +93,6 @@ impl<T: QueueHandler> StreamHandler<Result<Delivery, LapinError>> for QueueActor
         match item {
             Ok(item) => {
                 debug!("Message received!");
-
                 match self.process_message(&item, ctx) {
                     Ok(pair) => {
                         if let Some((corr_id, data)) = pair {
@@ -107,7 +103,6 @@ impl<T: QueueHandler> StreamHandler<Result<Delivery, LapinError>> for QueueActor
                         warn!("Message processing error: {}", err);
                     },
                 }
-
                 let fut = async move {
                     item.ack(
                         BasicAckOptions::default()
@@ -171,10 +166,16 @@ impl<T: QueueHandler> QueueActor<T> {
                 let props = BasicProperties::default()
                     .with_correlation_id(ShortString::from(corr_id));
                 debug!("Sending to: {}", self.handler.outgoing());
-                let fut = self.channel
-                    .basic_publish("", self.handler.outgoing(), opts, &data, props)
-                    .map_err(drop)
-                    .map(drop);
+                let outgoing = self.handler.outgoing().to_string();
+                let fut = async move {
+                    let channel = get_channel().await;
+                    channel
+                        .basic_publish("", &outgoing, opts, &data, props)
+                        .await
+                        .map_err(drop)
+                        .map(drop)
+                        .unwrap();
+                };
                 ctx.spawn(wrap_future(fut));
             },
             Err(err) => {
