@@ -1,40 +1,35 @@
 pub mod queue_actor;
 pub mod state;
 
-use actix::{Message, SystemRunner};
-use futures::Future;
-use lapin::{Connection, ConnectionProperties, Channel, Queue, Error as LapinError};
+use actix::Message;
+use lapin::{Connection, ConnectionProperties,
+    Channel, Error as LapinError, Queue};
 use lapin::options::QueueDeclareOptions;
 use lapin::types::FieldTable;
 use serde_derive::{Deserialize, Serialize};
-use tokio::net::TcpStream;
+use anyhow::Error;
 
 pub const REQUESTS: &str = "requests";
 pub const RESPONSES: &str = "responses";
 
-pub fn spawn_client(sys: &mut SystemRunner) -> Result<Channel<TcpStream>, Error> {
-    let addr = "127.0.0.1:5672".parse().unwrap();
-    let fut = TcpStream::connect(&addr)
-        .map_err(Error::from)
-        .and_then(|stream| {
-            let options = ConnectionProperties::default();
-            Connection::connect(stream, options).from_err::<Error>()
-        });
-    let (client, heartbeat) = sys.block_on(fut)?;
-    actix::spawn(heartbeat.map_err(drop));
-    let channel = sys.block_on(client.create_channel())?;
+pub async fn spawn_client(addr: &str)
+    -> Result<Channel, LapinError>
+{
+    let options = ConnectionProperties::default();
+    let conn = Connection::connect(addr, options).await?;
+    let channel = conn.create_channel().await?;
     Ok(channel)
 }
 
-pub fn ensure_queue(chan: &Channel<TcpStream>, name: &str)
-    -> impl Future<Output = Queue>
+pub async fn ensure_queue(chan: &Channel, name: &str)
+    -> Result<Queue, LapinError>
 {
     let opts = QueueDeclareOptions {
         auto_delete: true,
-        ..Default::defaut()
+        ..Default::default()
     };
-    let table = FieldTable::new();
-    chan.queue_declare(name, opts, table)
+    let table = FieldTable::default();
+    chan.queue_declare(name, opts, table).await
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
