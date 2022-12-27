@@ -6,7 +6,7 @@ use lapin::options::{
     BasicPublishOptions,
     BasicAckOptions};
 use lapin::protocol::BasicProperties;
-use lapin::{Error as LapinError};
+use lapin::{Error as LapinError, Channel};
 use lapin::message::Delivery;
 use lapin::types::FieldTable;
 use log::{debug, warn, error};
@@ -44,6 +44,7 @@ pub enum QueueActorError {
 
 pub struct QueueActor<T: QueueHandler> {
     handler: T,
+    channel: Channel,
 }
 
 impl<T: QueueHandler> Actor for QueueActor<T> {
@@ -54,10 +55,10 @@ impl<T: QueueHandler> Actor for QueueActor<T> {
 
 impl<T: QueueHandler> QueueActor<T> {
 
-    pub async fn new(handler: T)
+    pub async fn new(handler: T, addr: &str)
         -> Result<Addr<Self>, Error>
     {
-        let channel = get_channel().await;
+        let channel = get_channel(addr).await?;
         let chan = channel.clone();
         ensure_queue(&chan, handler.outgoing()).await?;
 
@@ -77,7 +78,7 @@ impl<T: QueueHandler> QueueActor<T> {
 
         let addr = QueueActor::create(move |ctx| {
             ctx.add_stream(stream);
-            Self { handler }
+            Self { handler, channel }
         });
         Ok(addr)
     }
@@ -167,8 +168,8 @@ impl<T: QueueHandler> QueueActor<T> {
                     .with_correlation_id(ShortString::from(corr_id));
                 debug!("Sending to: {}", self.handler.outgoing());
                 let outgoing = self.handler.outgoing().to_string();
+                let channel = self.channel.clone();
                 let fut = async move {
-                    let channel = get_channel().await;
                     channel
                         .basic_publish("", &outgoing, opts, &data, props)
                         .await
