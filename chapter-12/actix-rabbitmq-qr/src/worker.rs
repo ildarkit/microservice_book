@@ -1,6 +1,5 @@
-use actix::System;
-use image::GenericImageView;
 use log::debug;
+use anyhow::{Error, Context};
 use queens_rock::Scanner;
 use actix_rabbitmq_qr::queue_actor::{QueueActor, QueueHandler, TaskId};
 use actix_rabbitmq_qr::{QrRequest, QrResponse, REQUESTS, RESPONSES};
@@ -30,28 +29,33 @@ impl QueueHandler for WorkerHandler {
 }
 
 impl WorkerHandler {
-    fn scan(&self, data: &[u8]) -> Result<String, Error> {
-        let image = image::load_from_memory(data)?;
-        let luma = image.to_luma().into_vec();
+    fn scan(&self, data: &[u8]) -> anyhow::Result<String> {
+        let image = image::load_from_memory(data)
+            .context("Worker scan error")?;
+        let luma = image.to_luma8().into_vec();
         let scanner = Scanner::new(
             luma.as_ref(),
             image.width() as usize,
             image.height() as usize,
         );
         scanner.scan().extract(0)
-            .ok_or_else(|| format!("can't extract"))
-            .and_then(|code| code.decode().map_err(|_| format!("can't decode")))
+            .ok_or_else(|| Error::msg("Can't extract"))
+            .and_then(|code| code.decode().map_err(
+                |_| Error::msg("Can't decode"))
+            )
             .and_then(|data| {
                 data.try_string()
-                .map_err(|_| format!("can't convert to a string"))
+                    .map_err(
+                        |_| Error::msg("Can't convert to a string")
+                    )
             })
     }
 }
 
-fn main() -> Result<(), Error> {
-    env_logger::init();
-    let mut sys = System::new("rabbit-actix-worker");
-    let _ = QueueActor::new(WorkerHandler {}, &mut sys)?;
-    let _ = sys.run();
+#[actix_web::main]
+async fn main() -> anyhow::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    let addr = "amqp://127.0.0.1:5672";
+    QueueActor::new(WorkerHandler {}, addr).await?;
     Ok(())
 }
