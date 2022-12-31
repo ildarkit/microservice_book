@@ -13,9 +13,9 @@ pub fn init_tasks() -> SharedTasks {
 
 #[derive(Clone)]
 pub struct Record {
-    task_id: TaskId,
-    timestamp: DateTime<Utc>,
-    status: Status,
+    pub task_id: TaskId,
+    pub timestamp: DateTime<Utc>,
+    pub status: Status,
 }
 
 impl Record {

@@ -6,8 +6,8 @@ use crate::queue_actor::{QueueActor, QueueHandler};
 
 #[derive(Clone)]
 pub struct State<T: QueueHandler> {
-    tasks: SharedTasks,
-    addr: Addr<QueueActor<T>>,
+    pub tasks: SharedTasks,
+    pub addr: Addr<QueueActor<T>>,
 }
 
 impl<T: QueueHandler> State<T> {
