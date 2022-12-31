@@ -1,6 +1,7 @@
 use log::debug;
 use anyhow::{Error, Context};
 use queens_rock::Scanner;
+use actix_web::rt::System;
 use actix_rabbitmq_qr::queue_actor::{QueueActor, QueueHandler, TaskId};
 use actix_rabbitmq_qr::{QrRequest, QrResponse, REQUESTS, RESPONSES};
 
@@ -52,10 +53,12 @@ impl WorkerHandler {
     }
 }
 
-#[actix_web::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let addr = "amqp://127.0.0.1:5672";
-    QueueActor::new(WorkerHandler {}, addr).await?;
+    let sys = System::new();
+    sys.block_on(
+        QueueActor::new(WorkerHandler {}, addr))?;
+    sys.run()?;
     Ok(())
 }
