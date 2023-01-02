@@ -1,0 +1,28 @@
+[package]
+name = "actix_web-route-request"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "actix_request"
+path = "src/main.rs"
+
+[lib]
+name = "request_count"
+
+[dependencies]
+actix = "0.13.0"
+actix-files = "0.6.2"
+actix-identity = "0.5.2"
+actix-session = { version = "0.7.2", features = ["cookie-session"] }
+actix-web = "4.2.1"
+anyhow = "1.0.66"
+awc = "3.0.1"
+env_logger = "0.9.3"
+futures = "0.3.25"
+log = "0.4.17"
+redis = "0.22.1"
+serde = "1.0.147"
+serde_derive = "1.0.147"
+serde_urlencoded = "0.7.1"
+thiserror = "1.0.37"
