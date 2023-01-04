@@ -9,13 +9,13 @@ use crate::error::{ApiError, context_err};
 
 #[derive(Deserialize, Serialize)]
 pub struct UserForm {
-    email: String,
-    password: String,
+    pub email: String,
+    pub password: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct UserId {
-    id: String,
+    pub id: String,
 }
 
 #[derive(Deserialize)]
@@ -25,7 +25,7 @@ pub struct AddComment {
 
 #[derive(Serialize)]
 pub struct NewComment {
-    pub uid: String,
+    pub uid:String,
     pub text: String,
 }
 
@@ -35,9 +35,13 @@ fn redirect(url: &str) -> HttpResponse {
         .finish()
 }
 
-pub async fn signup(params: web::Form<UserForm>) -> Result<impl Responder, ApiError> {
+pub async fn signup(params: web::Form<UserForm>,
+    count_state: web::Data<CountState>
+)
+    -> Result<impl Responder, ApiError>
+{
     client::post_request::<UserForm, _>(
-        "http://127.0.0.1:8001/signup",
+        &count_state.links.signup,
         params.into_inner()
     )
     .await
@@ -46,11 +50,14 @@ pub async fn signup(params: web::Form<UserForm>) -> Result<impl Responder, ApiEr
     Ok(redirect("/login.html"))
 }
 
-pub async fn signin(req: HttpRequest, params: web::Form<UserForm>)
+pub async fn signin(req: HttpRequest,
+    params: web::Form<UserForm>,
+    count_state: web::Data<CountState>
+)
     -> Result<impl Responder, ApiError>
 {
     let user = client::post_request::<UserForm, UserId>(
-        "http://127.0.0.1:8001/signin",
+        &count_state.links.signin,
         params.into_inner()
     )
     .await
@@ -63,7 +70,8 @@ pub async fn signin(req: HttpRequest, params: web::Form<UserForm>)
 
 pub async fn new_comment(
     params: web::Form<AddComment>,
-    user: Option<Identity>
+    user: Option<Identity>,
+    count_state: web::Data<CountState>
 )
     -> Result<impl Responder, ApiError>
 {
@@ -75,7 +83,7 @@ pub async fn new_comment(
             text: params.into_inner().text,
         };
         client::post_request::<_, ()>(
-            "http:/127.0.0.1:8003/new_comment",
+            &count_state.links.new_comment,
             params
         )
         .await
@@ -90,7 +98,10 @@ pub async fn new_comment(
 pub async fn comments(_req: HttpRequest, count_state: web::Data<CountState>)
     -> Result<impl Responder, ApiError>
 {
-    let fut = client::get_request("http://127.0.0.1:8003/list");
+    let link = count_state.links.comments.to_owned();
+    let fut = async move {
+        client::get_request(&link).await
+    };
     let data = count_state.cache("/list", fut)
         .await
         .map_err(|e| context_err(e, "Failed to get comments"))?;

@@ -5,18 +5,21 @@ use std::cell::RefCell;
 
 use crate::cache::CacheLink;
 use crate::client::ClientHttpError;
+use crate::LinksMap;
 
 #[derive(Clone)]
 pub struct CountState {
     counter: RefCell<i64>,
     cache: CacheLink,
+    pub links: LinksMap,
 }
 
 impl CountState {
-    pub fn new(cache: CacheLink) -> Self {
+    pub fn new(cache: CacheLink, links: LinksMap) -> Self {
         Self {
             counter: RefCell::default(),
             cache,
+            links,
         }
     }
 
