@@ -1,3 +1,4 @@
+use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web, Responder};
 use actix_identity::Identity;
@@ -40,6 +41,7 @@ pub async fn signup(params: web::Form<UserForm>,
 )
     -> Result<impl Responder, ApiError>
 {
+    debug!("POST request for signup to {}", &count_state.links.signup);
     client::post_request::<UserForm, _>(
         &count_state.links.signup,
         params.into_inner()
@@ -56,6 +58,8 @@ pub async fn signin(req: HttpRequest,
 )
     -> Result<impl Responder, ApiError>
 {
+    debug!("POST request for signin to {}",
+        &count_state.links.signin);
     let user = client::post_request::<UserForm, UserId>(
         &count_state.links.signin,
         params.into_inner()
@@ -82,6 +86,8 @@ pub async fn new_comment(
             uid: user.id()?,
             text: params.into_inner().text,
         };
+        debug!("POST request for new comment to {}",
+            &count_state.links.new_comment);
         client::post_request::<_, ()>(
             &count_state.links.new_comment,
             params
@@ -99,6 +105,7 @@ pub async fn comments(_req: HttpRequest, count_state: web::Data<CountState>)
     -> Result<impl Responder, ApiError>
 {
     let link = count_state.links.comments.to_owned();
+    debug!("GET Request for comments to {}", &link);
     let fut = async move {
         client::get_request(&link).await
     };

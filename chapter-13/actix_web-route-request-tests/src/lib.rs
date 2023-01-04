@@ -7,7 +7,7 @@ pub mod cache;
 
 use serde_derive::Deserialize;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct LinksMap {
     pub signup: String,
     pub signin: String,

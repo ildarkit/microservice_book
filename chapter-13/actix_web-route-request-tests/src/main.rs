@@ -15,7 +15,7 @@ fn read_config() -> std::io::Result<LinksMap> {
     Ok(toml::from_str(&links)?)
 }
 
-fn start(links: LinksMap) -> std::io::Result<()> {
+fn start(links: &LinksMap) -> std::io::Result<()> {
     let sys = System::new();
 
     sys.block_on(
@@ -25,6 +25,7 @@ fn start(links: LinksMap) -> std::io::Result<()> {
                 CacheActor::new("redis://127.0.0.1:6379", 10)
             });
             let cache = CacheLink::new(addr);
+            let links = links.clone();
 
             HttpServer::new(move || {
                 let state = CountState::new(cache.clone(), links.clone());
@@ -45,7 +46,7 @@ fn start(links: LinksMap) -> std::io::Result<()> {
                     .app_data(web::Data::clone(&data))
                     .service(
                         web::scope("/api")
-                            .route("/singup", web::post().to(handlers::signup))
+                            .route("/signup", web::post().to(handlers::signup))
                             .route("/signin", web::post().to(handlers::signin))
                             .route("/new_comment", web::post().to(handlers::new_comment))
                             .route("/comments", web::get().to(handlers::comments))
@@ -66,7 +67,7 @@ fn start(links: LinksMap) -> std::io::Result<()> {
 
 fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    let links = read_config()?;
+    let links = &read_config()?;
     start(links)
 }
 
@@ -79,6 +80,7 @@ mod tests {
     use mockito::{mock, Mock};
     use reqwest::blocking::Client;
     use serde::{Deserialize, Serialize};
+    use log::debug;
     use super::*;
     use super::handlers::*;
 
@@ -108,7 +110,8 @@ mod tests {
         let mut started = STARTED.lock().unwrap();
         if !*started {
             thread::spawn(|| {
-                let url = mockito::server_url();
+                env_logger::init();
+                let url = &mockito::server_url();
                 let _signup = add_mock("POST", "/signup", ());
                 let _signin = add_mock(
                     "POST", "/signin", UserId { id: "user-id".into() });
@@ -119,15 +122,16 @@ mod tests {
                     uid: "user-id".into(),
                 };
                 let _comment = add_mock("GET", "/comments", vec![comment]);
-                let links = LinksMap {
-                    signup: mock_url(&url, "/signup"),
-                    signin: mock_url(&url, "/signin"),
-                    new_comment: mock_url(&url, "/new_comment"),
-                    comments: mock_url(&url, "/comments"),
+                let links = &LinksMap {
+                    signup: mock_url(url, "/signup"),
+                    signin: mock_url(url, "/signin"),
+                    new_comment: mock_url(url, "/new_comment"),
+                    comments: mock_url(url, "/comments"),
                 };
+                debug!("Mock links: {:#?}", links);
                 start(links).unwrap();
             });
-            thread::sleep(Duration::from_secs(5));
+            thread::sleep(Duration::from_secs(1));
             *started = true;
         }
     }
@@ -141,7 +145,9 @@ mod tests {
         T: for <'de> Deserialize <'de>,
     {
         let client = Client::new();
-        let data = client.get(&test_url(path))
+        let path = &test_url(path);
+        debug!("GET request to: {path}");
+        let data = client.get(path)
             .send()
             .unwrap()
             .text()
@@ -159,7 +165,9 @@ mod tests {
     {
         setup();
         let client = Client::new();
-        let resp = client.post(&test_url(path))
+        let path = &test_url(path);
+        debug!("POST request to: {path}");
+        let resp = client.post(path)
             .form(data)
             .send()
             .unwrap();
