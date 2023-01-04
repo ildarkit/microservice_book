@@ -1,0 +1,4 @@
+signup = 'http://127.0.0.1:8001/signup'
+signin = 'http://127.0.0.1:8001/signin'
+new_comment = 'http://127.0.0.1:8003/new_comment'
+comments = 'http://127.0.0.1:8003/comments'
