@@ -51,7 +51,7 @@ fn start(links: &LinksMap) -> std::io::Result<()> {
                             .route("/new_comment", web::post().to(handlers::new_comment))
                             .route("/comments", web::get().to(handlers::comments))
                     )
-                    .route("stats/counter", web::get().to(handlers::counter))
+                    .route("/stats/counter", web::get().to(handlers::counter))
                     .service(
                         fs::Files::new("/", "./static").index_file("index.html")
                     )
@@ -75,7 +75,6 @@ fn main() -> std::io::Result<()> {
 mod tests {
     use std::thread;
     use std::sync::Mutex;
-    use std::time::Duration;
     use lazy_static::lazy_static;
     use mockito::{mock, Mock};
     use reqwest::blocking::Client;
@@ -122,6 +121,7 @@ mod tests {
                     uid: "user-id".into(),
                 };
                 let _comment = add_mock("GET", "/comments", vec![comment]);
+                let _count = add_mock("GET", "/stats/counter", 1);
                 let links = &LinksMap {
                     signup: mock_url(url, "/signup"),
                     signin: mock_url(url, "/signin"),
@@ -131,7 +131,6 @@ mod tests {
                 debug!("Mock links: {:#?}", links);
                 start(links).unwrap();
             });
-            thread::sleep(Duration::from_secs(1));
             *started = true;
         }
     }
@@ -140,13 +139,30 @@ mod tests {
         format!("{}{}", base, path)
     }
 
+    fn test_api_get<T>(path: &str) -> T
+    where
+        T: for <'de> Deserialize <'de>,
+    { 
+        let path = &test_api_url(path);
+        debug!("GET request to: {path}");
+        client_get(path)
+    }
+
     fn test_get<T>(path: &str) -> T
     where
         T: for <'de> Deserialize <'de>,
-    {
-        let client = Client::new();
-        let path = &test_url(path);
+    { 
         debug!("GET request to: {path}");
+        let path = &test_url(path);
+        client_get(path)
+    }
+
+    fn client_get<T>(path: &str) -> T
+    where
+        T: for <'de> Deserialize <'de>,
+    {
+        setup();
+        let client = Client::new();
         let data = client.get(path)
             .send()
             .unwrap()
@@ -155,18 +171,29 @@ mod tests {
         serde_json::from_str(&data).unwrap()
     }
 
-    fn test_url(path: &str) -> String {
+    fn test_api_url(path: &str) -> String {
         format!("http://127.0.0.1:8080/api{}", path)
     }
 
-    fn test_post<T>(path: &str, data: &T)
+    fn test_url(path: &str) -> String {
+        format!("http://127.0.0.1:8080{}", path)
+    }
+
+    fn test_api_post<T>(path: &str, data: &T)
+        where
+            T: Serialize,
+    {
+        let path = &test_api_url(path);
+        debug!("POST request to: {path}");
+        client_post(path, data);
+    }
+
+    fn client_post<T>(path: &str, data: &T)
         where
             T: Serialize,
     {
         setup();
         let client = Client::new();
-        let path = &test_url(path);
-        debug!("POST request to: {path}");
         let resp = client.post(path)
             .form(data)
             .send()
@@ -181,7 +208,7 @@ mod tests {
             email: "abc@example.com".into(),
             password: "abc".into(),
         };
-        test_post("/signup", &user);
+        test_api_post("/signup", &user);
     }
 
     #[test]
@@ -190,11 +217,25 @@ mod tests {
             email: "abc@example.com".into(),
             password: "abc".into(),
         };
-        test_post("/signin", &user);
+        test_api_post("/signin", &user);
     }
 
     #[test]
     fn test_list_with_client() {
-        let _: Vec<Comment> = test_get("/comments");
+        let _: Vec<Comment> = test_api_get("/comments");
+    }
+
+    #[test]
+    fn test_new_comment() {
+        let comment = NewComment {
+            uid: "user-id".into(),
+            text: "new comment".into(),
+        };
+        test_api_post("/new_comment", &comment);
+    }
+
+    #[test]
+    fn test_stats_counter() {
+        let _:i64 = test_get("/stats/counter");
     }
 }
