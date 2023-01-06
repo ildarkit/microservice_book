@@ -1,7 +1,7 @@
 use cookie::{Cookie, CookieJar};
 use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
-pub use reqwest::{self, Client, Method, RedirectPolicy, StatusCode};
+pub use reqwest::{self, blocking::Client, Method, RedirectPolicy, StatusCode};
 use reqwest::header::{COOKIE, SET_COOKIE};
 use serde::Deserialize;
 use std::collections::HashMap;
