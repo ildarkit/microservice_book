@@ -9,10 +9,18 @@ fn now() -> String {
     Utc::now().to_string()
 }
 
+#[cfg(not(feature = "borrow"))]
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
     time: String,
+}
+
+#[cfg(feature = "borrow")]
+#[derive(Template)]
+#[template(path = "index.html")]
+struct IndexTemplate<'a> {
+    time: &'a str,
 }
 
 #[derive(Clone)]
@@ -28,8 +36,13 @@ async fn index(state: web::Data<State>) -> HttpResponse {
     let last_minute = state.last_minute.lock().unwrap();
     #[cfg(feature = "rwlock")]
     let last_minute = state.last_minute.read().unwrap();
+
+    #[cfg(not(feature = "borrow"))]
     let template = IndexTemplate { time: last_minute.to_owned() };
+    #[cfg(feature = "borrow")]
+    let template = IndexTemplate { time: &last_minute };
     let body = template.render().unwrap();
+
     HttpResponse::Ok().body(body)
 }
 
