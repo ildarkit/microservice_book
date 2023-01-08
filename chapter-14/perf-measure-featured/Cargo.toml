@@ -17,5 +17,5 @@ futures = "0.3.25"
 default = []
 cache = []
 rwlock = []
-borrow []
+borrow = []
 fast = ["cache", "rwlock", "borrow"]
