@@ -29,9 +29,17 @@ struct State {
     last_minute: Arc<Mutex<String>>,
     #[cfg(feature = "rwlock")]
     last_minute: Arc<RwLock<String>>,
+    cached: Arc<RwLock<Option<String>>>,
 }
 
 async fn index(state: web::Data<State>) -> HttpResponse {
+    if cfg!(feature = "cached") {
+        let cached = state.cached.read().unwrap();
+        if let Some(ref body) = *cached {
+            return HttpResponse::Ok().body(body.to_owned());
+        }
+    }
+
     #[cfg(not(feature = "rwlock"))]
     let last_minute = state.last_minute.lock().unwrap();
     #[cfg(feature = "rwlock")]
@@ -42,6 +50,11 @@ async fn index(state: web::Data<State>) -> HttpResponse {
     #[cfg(feature = "borrow")]
     let template = IndexTemplate { time: &last_minute };
     let body = template.render().unwrap();
+
+    if cfg!(feature = "cached") {
+        let mut cached = state.cached.write().unwrap();
+        *cached = Some(body.clone());
+    }
 
     HttpResponse::Ok().body(body)
 }
@@ -69,8 +82,10 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
+    let cached = Arc::new(RwLock::new(None));
     let state = State {
         last_minute,
+        cached,
     };
 
     HttpServer::new(move || {
