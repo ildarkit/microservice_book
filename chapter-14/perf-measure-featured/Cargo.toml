@@ -19,3 +19,7 @@ cache = []
 rwlock = []
 borrow = []
 fast = ["cache", "rwlock", "borrow"]
+
+[profile.release]
+strip = "debuginfo"
+lto = true
