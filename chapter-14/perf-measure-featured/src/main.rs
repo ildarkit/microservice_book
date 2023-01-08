@@ -66,7 +66,7 @@ async fn main() -> std::io::Result<()> {
     #[cfg(not(feature = "rwlock"))]
     let last_minute = Arc::new(Mutex::new(value));
     #[cfg(feature = "rwlock")]
-    let last_minute = Arc::new(Rwlock::new(value));
+    let last_minute = Arc::new(RwLock::new(value));
 
     let last_minute_ref = last_minute.clone();
     thread::spawn(move || {
