@@ -62,7 +62,7 @@ fn send_impl(req: &mut Request<Data>) -> Result<()> {
 
     let sender = data.sender.lock().unwrap().clone();
     sender.send(email)
-        .map_err(|_| Error::msg("Can't send email"))?;
+        .map_err(|_| Error::msg("Can't send message to worker"))?;
     Ok(())
 }
 
