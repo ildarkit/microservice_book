@@ -22,7 +22,10 @@ struct Data {
 fn send<'mw>(req: &mut Request<Data>, res: Response<'mw, Data>) 
     -> MiddlewareResult<'mw, Data>
 {
-    try_with!(res, send_impl(req).map_err(|_| StatusCode::BadRequest));
+    try_with!(res, send_impl(req).map_err(|e| {
+        error!("Failed to send email:\n\tCause: {e}");
+        StatusCode::BadRequest
+    }));
     res.send("true")
 }
 
