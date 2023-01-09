@@ -4,7 +4,7 @@ use std::sync::mpsc::{channel, Sender};
 use std::collections::HashMap;
 use anyhow::{Result, Error};
 use lettre::address::{Address, Envelope};
-use lettre::{Message, SmtpTransport, Transport};
+use lettre::{message::Mailbox, Message, SmtpTransport, Transport};
 use lettre::transport::smtp::authentication::Credentials;
 #[macro_use]
 extern crate nickel;
@@ -12,6 +12,7 @@ use nickel::{Nickel, HttpRouter, FormBody, Request, Response,
     MiddlewareResult};
 use nickel::status::StatusCode;
 use nickel::template_cache::{ReloadPolicy, TemplateCache};
+use log::error;
 
 struct Data {
     sender: Mutex<Sender<Message>>,
@@ -47,11 +48,13 @@ fn send_impl(req: &mut Request<Data>) -> Result<()> {
         &params
     )?;
 
+    let from: Mailbox = "<admin@example.com>".parse()?;
     let to = to.parse::<Address>()?;
     let envelope = Envelope::new(None, vec![to])?;
     let email = Message::builder()
         .envelope(envelope)
         .subject("Confirm email".to_string())
+        .from(from)
         .body(body)?;
 
     let sender = data.sender.lock().unwrap().clone();
@@ -72,7 +75,7 @@ fn spawn_sender() -> Sender<Message> {
         for email in rx.iter() {
             let result = mailer.send(&email);
             if let Err(err) = result {
-                println!("Can't send mail: {}", err);
+                error!("Can't send mail: {}", err);
             }
         }
     });
@@ -80,6 +83,7 @@ fn spawn_sender() -> Sender<Message> {
 }
 
 fn main() {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let tx = spawn_sender();
 
     let data = Data {
