@@ -4,16 +4,18 @@ use std::sync::mpsc::{channel, Sender};
 use std::collections::HashMap;
 use anyhow::Error;
 use lettre::error::Error as LettreError;
-use lettre::address::{Address, Envelope, AddressError};
-use lettre::{message::Mailbox, Message, SmtpTransport, Transport};
-use lettre::transport::smtp::authentication::Credentials;
+use lettre::address::AddressError;
+use lettre::{Message, SmtpTransport, Transport};
+use lettre::transport::smtp::{
+    authentication::{Credentials, Mechanism},
+    client::{Tls, TlsParameters}};
 #[macro_use]
 extern crate nickel;
 use nickel::{Nickel, HttpRouter, FormBody, Request, Response,
     MiddlewareResult};
 use nickel::status::StatusCode;
 use nickel::template_cache::{ReloadPolicy, TemplateCache};
-use log::error;
+use log::{debug, error};
 
 struct Data {
     sender: Mutex<Sender<Message>>,
@@ -71,13 +73,10 @@ fn send_impl(req: &mut Request<Data>) -> Result<(), MailError> {
         &params
     )?;
 
-    let from: Mailbox = "<admin@example.com>".parse()?;
-    let to = to.parse::<Address>()?;
-    let envelope = Envelope::new(None, vec![to])?;
     let email = Message::builder()
-        .envelope(envelope)
         .subject("Confirm email".to_string())
-        .from(from)
+        .from("<admin@example.com>".parse()?)
+        .to(to.parse()?)
         .body(body)?;
 
     let sender = data.sender.lock().unwrap().clone();
@@ -87,15 +86,23 @@ fn send_impl(req: &mut Request<Data>) -> Result<(), MailError> {
 }
 
 fn spawn_sender() -> Sender<Message> {  
-    let (tx, rx) = channel();
+    let (tx, rx) = channel::<Message>();
 
     thread::spawn(move || {
-        let mailer = SmtpTransport::builder_dangerous("localhost:2525")
-            .credentials(
-                Credentials::new("admin@example.com".into(), "password".into())
-            )
-            .build();   
+        let tls = TlsParameters::builder("smtp.example.com".to_string())
+            .dangerous_accept_invalid_certs(true)
+            .build().unwrap();
+        let mailer = SmtpTransport::relay("localhost").unwrap()
+            .tls(Tls::Opportunistic(tls))
+            .port(2525)
+            .credentials(Credentials::new(
+                "admin@example.com".to_string(),
+                "password".to_string(),
+            ))
+            .authentication(vec![Mechanism::Plain])
+            .build();
         for email in rx.iter() {
+            debug!("{}", std::str::from_utf8(&email.formatted()).unwrap());
             let result = mailer.send(&email);
             if let Err(err) = result {
                 error!("Can't send mail: {}", err);

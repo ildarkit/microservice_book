@@ -5,6 +5,6 @@
     <title>Confirm Email</title>
   </head>
   <body>
-    <!-- page content -->
+    {{ code }}
   </body>
 </html>
