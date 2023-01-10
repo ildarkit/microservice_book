@@ -2,8 +2,9 @@ use std::thread;
 use std::sync::Mutex;
 use std::sync::mpsc::{channel, Sender};
 use std::collections::HashMap;
-use anyhow::{Result, Error};
-use lettre::address::{Address, Envelope};
+use anyhow::Error;
+use lettre::error::Error as LettreError;
+use lettre::address::{Address, Envelope, AddressError};
 use lettre::{message::Mailbox, Message, SmtpTransport, Transport};
 use lettre::transport::smtp::authentication::Credentials;
 #[macro_use]
@@ -19,23 +20,42 @@ struct Data {
     cache: TemplateCache,
 }
 
+#[derive(thiserror::Error, Debug)]
+enum MailError {
+    #[error("{0}")]
+    FormError(String),
+    #[error(transparent)]
+    TemplateError(#[from] mustache::Error),
+    #[error(transparent)]
+    MessageError(#[from] LettreError),
+    #[error(transparent)]
+    AddressError(#[from] AddressError),
+    #[error(transparent)]
+    OtherError(#[from] Error),
+}
+
 fn send<'mw>(req: &mut Request<Data>, res: Response<'mw, Data>) 
     -> MiddlewareResult<'mw, Data>
 {
     try_with!(res, send_impl(req).map_err(|e| {
         error!("Failed to send email:\n\tCause: {e}");
-        StatusCode::BadRequest
+        match e {
+            MailError::FormError(_) => StatusCode::BadRequest,
+            _ => StatusCode::InternalServerError,
+        }
     }));
     res.send("true")
 }
 
-fn send_impl(req: &mut Request<Data>) -> Result<()> {
+fn send_impl(req: &mut Request<Data>) -> Result<(), MailError> {
     let (to, code) = {
         let params = req.form_body()
-            .map_err(|_| Error::msg("Can't get form body"))?;
-        let to = params.get("to").ok_or(Error::msg("<TO> field not set"))?
+            .map_err(|_| MailError::FormError("Can't get form body".into()))?;
+        let to = params.get("to")
+            .ok_or(MailError::FormError("<TO> field not set".into()))?
             .to_owned();
-        let code = params.get("code").ok_or(Error::msg("<CODE> field not set"))?
+        let code = params.get("code")
+            .ok_or(MailError::FormError("<CODE> field not set".into()))?
             .to_owned();
         (to, code)
     };

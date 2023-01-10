@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = "1.0.68"
 env_logger = "0.10.0"
 lettre = { version = "0.10.1", features = ["smtp-transport", "builder"] }
-lettre_email = "0.9.4"
 log = "0.4.17"
+mustache = "0.9.0"
 nickel = "0.11.0"
+thiserror = "1.0.38"
