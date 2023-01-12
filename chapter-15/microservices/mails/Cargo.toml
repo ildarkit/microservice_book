@@ -1,0 +1,15 @@
+[package]
+name = "nickel-mailing"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.68"
+env_logger = "0.10.0"
+lettre = { version = "0.10.1", features = ["smtp-transport", "builder", "native-tls"] }
+log = "0.4.17"
+mustache = "0.9.0"
+nickel = "0.11.0"
+thiserror = "1.0.38"
