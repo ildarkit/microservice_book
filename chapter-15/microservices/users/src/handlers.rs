@@ -8,7 +8,7 @@ use diesel::r2d2::ConnectionManager;
 use crypto::pbkdf2::{pbkdf2_simple, pbkdf2_check};
 use user_models::{models, schema};
 
-type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
+type Pool = r2d2::Pool<ConnectionManager<PgConnection>>;
 
 #[derive(Serialize)]
 struct UserId {

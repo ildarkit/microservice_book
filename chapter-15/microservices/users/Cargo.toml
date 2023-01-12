@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "user-registration"
+name = "users-microservice"
 path = "src/main.rs"
 
 [lib]
@@ -14,8 +14,8 @@ name = "user_models"
 
 [dependencies]
 anyhow = "1.0.68"
-diesel = { version = "2.0.2", features = ["sqlite", "r2d2"] }
-dotenvy = "0.15.6"
+config = "0.13.1"
+diesel = { version = "2.0.2", features = ["postgres", "r2d2"] }
 env_logger = "0.10.0"
 log = "0.4.17"
 r2d2 = "0.8.10"
@@ -23,4 +23,4 @@ rouille = "3.6.1"
 rust-crypto = "0.2.36"
 serde = "1.0.152"
 serde_derive = "1.0.152"
-uuid = { version = "1.2.2", features = ["v4"] }
+uuid = { version = "1.2.2", features = ["v4", "serde"] }
