@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [lib]
 name = "user_models"
+path = "src/lib.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
