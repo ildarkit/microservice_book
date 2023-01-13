@@ -7,6 +7,7 @@ RUN cargo build
 
 RUN rm src/*.rs
 COPY ./src ./src
+RUN rm ./target/debug/deps/content_microservice*
 RUN cargo build
 
 CMD ["./target/debug/content-microservice"]

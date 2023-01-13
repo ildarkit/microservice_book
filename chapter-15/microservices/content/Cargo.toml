@@ -1,5 +1,5 @@
 [package]
-name = "rocket-comment"
+name = "content-microservice"
 version = "0.1.0"
 edition = "2021"
 
