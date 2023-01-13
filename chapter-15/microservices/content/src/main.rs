@@ -4,8 +4,6 @@
 mod comment;
 mod schema;
 
-use log::error;
-use rocket::{Build, Rocket};
 use rocket::form::Form;
 use rocket::serde::json::Json;
 use rocket_sync_db_pools::{
