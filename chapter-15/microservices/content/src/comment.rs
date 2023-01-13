@@ -1,7 +1,7 @@
 use diesel::{self, prelude::*};
 use serde_derive::Serialize;
 use rocket::form::FromForm;
-use rocket_sync_db_pools::diesel::SqliteConnection;
+use rocket_sync_db_pools::diesel::PgConnection;
 use super::schema::comments;
 use super::schema::comments::dsl::{comments as all_comments};
 
@@ -20,11 +20,11 @@ pub struct NewComment {
 }
 
 impl Comment {
-    pub fn all(conn: &SqliteConnection) -> Vec<Comment> {
+    pub fn all(conn: &PgConnection) -> Vec<Comment> {
         all_comments.order(comments::id.desc()).load::<Comment>(conn).unwrap()
     }
 
-    pub fn insert(comment: NewComment, conn: &SqliteConnection) -> bool {
+    pub fn insert(comment: NewComment, conn: &PgConnection) -> bool {
         let t = Comment {
             id: None,
             uid: comment.uid,
