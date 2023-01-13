@@ -1,11 +1,16 @@
+mod settings;
+
 use std::thread;
 use std::sync::Mutex;
+use std::net::ToSocketAddrs;
 use std::sync::mpsc::{channel, Sender};
 use std::collections::HashMap;
-use anyhow::Error;
+use anyhow::{Result, Error};
 use lettre::error::Error as LettreError;
 use lettre::address::AddressError;
 use lettre::{Message, SmtpTransport, Transport};
+use lettre::transport::smtp::{
+    authentication::{Credentials, Mechanism}};
 #[macro_use]
 extern crate nickel;
 use nickel::{Nickel, HttpRouter, FormBody, Request, Response,
@@ -13,6 +18,7 @@ use nickel::{Nickel, HttpRouter, FormBody, Request, Response,
 use nickel::status::StatusCode;
 use nickel::template_cache::{ReloadPolicy, TemplateCache};
 use log::{debug, error};
+use settings::Settings;
 
 struct Data {
     sender: Mutex<Sender<Message>>,
@@ -82,13 +88,31 @@ fn send_impl(req: &mut Request<Data>) -> Result<(), MailError> {
     Ok(())
 }
 
-fn spawn_sender() -> Sender<Message> {  
+fn spawn_sender(
+    address: String,
+    login: String,
+    password: String)
+    -> Result<Sender<Message>>
+{  
     let (tx, rx) = channel::<Message>();
 
+    let smtp_address: Vec<_> = address
+        .to_socket_addrs()
+        .map_err(|_| Error::msg("Unable to parse address: {address}"))?
+        .collect();
+
     thread::spawn(move || {
-        let mailer = SmtpTransport::builder_dangerous("localhost")
-            .port(2525)
+        let mailer = SmtpTransport::builder_dangerous(
+                format!("{}", smtp_address[0].ip())
+            )
+            .port(smtp_address[0].port())
+            .credentials(Credentials::new(
+                login,
+                password,
+            ))
+            .authentication(vec![Mechanism::Plain]) 
             .build();
+
         for email in rx.iter() {
             debug!("{}", std::str::from_utf8(&email.formatted()).unwrap());
             let result = mailer.send(&email);
@@ -97,12 +121,17 @@ fn spawn_sender() -> Sender<Message> {
             }
         }
     });
-    tx
+    Ok(tx)
 }
 
-fn main() {
+fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    let tx = spawn_sender();
+    let conf = Settings::new()?;
+    let tx = spawn_sender(
+        conf.smtp_address,
+        conf.smtp_login,
+        conf.smtp_password
+    )?;
 
     let data = Data {
         sender: Mutex::new(tx),
@@ -111,5 +140,6 @@ fn main() {
     let mut server = Nickel::with_data(data);
     server.get("/", middleware!("Mailer microservice"));
     server.post("/send", send);
-    server.listen("127.0.0.1:8002").unwrap();
+    server.listen(conf.address).unwrap();
+    Ok(())
 }
