@@ -19,7 +19,7 @@ impl Settings {
             .set_default("signin", "http://127.0.0.1:8001/signin")?
             .set_default("new_comment", "http://127.0.0.1:8003/new_comment")?
             .set_default("comments", "http://127.0.0.1:8003/comments")?
-            .set_default("radis", "redis://127.0.0.1:6379")?
+            .set_default("redis", "redis://127.0.0.1:6379")?
             .add_source(Environment::with_prefix("ROUTER"))
             .build()?
             .try_deserialize::<Self>()

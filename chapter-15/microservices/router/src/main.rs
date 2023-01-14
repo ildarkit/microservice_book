@@ -22,9 +22,9 @@ fn start(links: Settings) -> Result<()> {
         async move {
             let secret = Key::generate();
             
-            let radis = links.radis.clone();
+            let redis = links.redis.clone();
             let addr = SyncArbiter::start(3, move || { 
-                CacheActor::new(&radis, 10)
+                CacheActor::new(&redis, 10)
             });
             let cache = CacheLink::new(addr);
             let bind_address = links.address.clone();
