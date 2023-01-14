@@ -1,21 +1,24 @@
+use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use actix_web::{HttpMessage, HttpRequest, HttpResponse, web, Responder};
 use actix_identity::Identity;
 use actix_web::http::header;
 
 use crate::client;
-use crate::counter::CountState;
+use crate::cache;
+use crate::Settings;
+use crate::cache_actor::CacheLink;
 use crate::error::{ApiError, context_err};
 
 #[derive(Deserialize, Serialize)]
 pub struct UserForm {
-    email: String,
-    password: String,
+    pub email: String,
+    pub password: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct UserId {
-    id: String,
+    pub id: String,
 }
 
 #[derive(Deserialize)]
@@ -25,7 +28,7 @@ pub struct AddComment {
 
 #[derive(Serialize)]
 pub struct NewComment {
-    pub uid: String,
+    pub uid:String,
     pub text: String,
 }
 
@@ -35,9 +38,15 @@ fn redirect(url: &str) -> HttpResponse {
         .finish()
 }
 
-pub async fn signup(params: web::Form<UserForm>) -> Result<impl Responder, ApiError> {
+pub async fn signup(
+    params: web::Form<UserForm>,
+    links: web::Data<Settings>
+)
+    -> Result<impl Responder, ApiError>
+{
+    debug!("POST request for signup to {}", &links.signup);
     client::post_request::<UserForm, _>(
-        "http://127.0.0.1:8001/signup",
+        &links.signup,
         params.into_inner()
     )
     .await
@@ -46,11 +55,18 @@ pub async fn signup(params: web::Form<UserForm>) -> Result<impl Responder, ApiEr
     Ok(redirect("/login.html"))
 }
 
-pub async fn signin(req: HttpRequest, params: web::Form<UserForm>)
+pub async fn signin(req: HttpRequest,
+    params: web::Form<UserForm>,
+    links: web::Data<Settings>
+)
     -> Result<impl Responder, ApiError>
 {
+    debug!(
+        "POST request for signin to {}",
+        &links.signin
+    );
     let user = client::post_request::<UserForm, UserId>(
-        "http://127.0.0.1:8001/signin",
+        &links.signin,
         params.into_inner()
     )
     .await
@@ -63,7 +79,8 @@ pub async fn signin(req: HttpRequest, params: web::Form<UserForm>)
 
 pub async fn new_comment(
     params: web::Form<AddComment>,
-    user: Option<Identity>
+    user: Option<Identity>,
+    links: web::Data<Settings>
 )
     -> Result<impl Responder, ApiError>
 {
@@ -74,8 +91,10 @@ pub async fn new_comment(
             uid: user.id()?,
             text: params.into_inner().text,
         };
+        debug!("POST request for new comment to {}",
+            &links.new_comment);
         client::post_request::<_, ()>(
-            "http:/127.0.0.1:8003/new_comment",
+            &links.new_comment,
             params
         )
         .await
@@ -87,17 +106,16 @@ pub async fn new_comment(
     Ok(redirect(url))
 }
 
-pub async fn comments(_req: HttpRequest, count_state: web::Data<CountState>)
+pub async fn comments(
+    links: web::Data<Settings>,
+    cache: web::Data<CacheLink>
+)
     -> Result<impl Responder, ApiError>
 {
-    let fut = client::get_request("http://127.0.0.1:8003/list");
-    let data = count_state.cache("/list", fut)
+    debug!("GET Request for comments to {}", &links.comments);
+    let data = cache::cache(&cache, "/list", &links.comments)
         .await
         .map_err(|e| context_err(e, "Failed to get comments"))?;
 
     Ok(HttpResponse::Ok().body(data))
-}
-
-pub async fn counter(count_state: web::Data<CountState>) -> impl Responder {
-    format!("{}", count_state.get_ref())
 }
