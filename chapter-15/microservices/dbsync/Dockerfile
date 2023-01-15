@@ -12,8 +12,8 @@ COPY diesel.toml .
 RUN rm ./target/debug/deps/dbsync_worker*
 RUN cargo build
 
-FROM debian:buster-slim
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* 
+FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/* 
 COPY --from=builder /dbsync-worker/target/debug/dbsync-worker /app/
 ENV RUST_LOG=debug
 EXPOSE 8000

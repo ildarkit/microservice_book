@@ -11,8 +11,7 @@ COPY ./static ./static
 RUN rm ./target/debug/deps/router_microservice*
 RUN cargo build
 
-FROM debian:buster-slim
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* 
+FROM debian:bullseye-slim
 COPY --from=builder /router-microservice/target/debug/router-microservice /app/
 ENV RUST_LOG=debug
 CMD ["/app/router-microservice"]

@@ -1,5 +1,5 @@
 use serde_derive::Deserialize;
-use config::{File, Config, ConfigError, Environment};
+use config::{Config, ConfigError, Environment};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {

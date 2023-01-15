@@ -10,8 +10,8 @@ COPY ./src ./src
 RUN rm ./target/debug/deps/content_microservice*
 RUN cargo build
 
-FROM debian:buster-slim
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* 
+FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/* 
 COPY --from=builder /content-microservice/target/debug/content-microservice /app/
 ENV RUST_LOG=debug
 CMD ["/app/content-microservice"]
