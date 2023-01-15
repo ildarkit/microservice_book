@@ -12,7 +12,6 @@ impl Settings {
         Config::builder()
             .set_default("address", "0.0.0.0:8000")?
             .set_default("database", "postgres://localhost/")?
-            .add_source(File::with_name("config"))
             .add_source(Environment::with_prefix("USERS"))
             .build()?
             .try_deserialize::<Self>()
