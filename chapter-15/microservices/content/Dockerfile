@@ -1,4 +1,4 @@
-FROM rust:1.66
+FROM rust:1.66 as builder
 
 RUN USER=root cargo new content-microservice
 WORKDIR /content-microservice
@@ -10,5 +10,9 @@ COPY ./src ./src
 RUN rm ./target/debug/deps/content_microservice*
 RUN cargo build
 
-CMD ["./target/debug/content-microservice"]
+FROM debian:buster-slim
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* 
+COPY --from=builder /content-microservice/target/debug/content-microservice /app/
+ENV RUST_LOG=debug
+CMD ["/app/content-microservice"]
 EXPOSE 8000

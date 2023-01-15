@@ -1,4 +1,4 @@
-FROM rust:1.66
+FROM rust:1.66 as builder
 
 RUN USER=root cargo new router-microservice
 WORKDIR /router-microservice
@@ -11,5 +11,9 @@ COPY ./static ./static
 RUN rm ./target/debug/deps/router_microservice*
 RUN cargo build
 
-CMD ["./target/debug/router-microservice"]
+FROM debian:buster-slim
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* 
+COPY --from=builder /router-microservice/target/debug/router-microservice /app/
+ENV RUST_LOG=debug
+CMD ["/app/router-microservice"]
 EXPOSE 8000
