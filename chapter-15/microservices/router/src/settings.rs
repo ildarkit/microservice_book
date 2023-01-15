@@ -7,7 +7,7 @@ pub struct Settings {
     pub signin: String,
     pub new_comment: String,
     pub comments: String,
-    pub radis: String,
+    pub redis: String,
     pub address: String,
 }
 
