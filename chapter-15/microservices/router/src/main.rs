@@ -140,7 +140,7 @@ mod tests {
                                 new_comment: mock_url(url, "/new_comment"),
                                 comments: mock_url(url, "/comments"),
                                 address: "127.0.0.1:8080".into(),
-                                radis: "redis://127.0.0.1:6379".into(),
+                                redis: "redis://127.0.0.1:6379".into(),
                             })
                         );
                 }
