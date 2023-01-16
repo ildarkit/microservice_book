@@ -2,7 +2,7 @@
 
 diesel::table! {
     comments (id) {
-        id -> Nullable<Integer>,
+        id -> Integer,
         uid -> Text,
         text -> Text,
     }

@@ -8,6 +8,7 @@ use super::schema::comments::dsl::{comments as all_comments};
 #[derive(Serialize, Queryable, Insertable, Debug, Clone)]
 #[table_name = "comments"]
 pub struct Comment {
+    #[diesel(deserialize_as = "i32")]
     pub id: Option<i32>,
     pub uid: String,
     pub text: String,
