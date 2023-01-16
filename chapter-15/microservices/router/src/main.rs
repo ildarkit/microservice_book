@@ -46,6 +46,7 @@ fn start(links: Settings) -> Result<()> {
                     .wrap(Logger::default())
                     .app_data(data)
                     .app_data(cache)
+                    .route("/healthcheck", web::get().to(handlers::healthcheck))
                     .service(
                         web::scope("/api")
                             .route("/signup", web::post().to(handlers::signup))

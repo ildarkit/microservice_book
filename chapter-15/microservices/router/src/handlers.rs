@@ -38,6 +38,10 @@ fn redirect(url: &str) -> HttpResponse {
         .finish()
 }
 
+pub async fn healthcheck() -> &'static str {
+    "Router microservice"
+}
+
 pub async fn signup(
     params: web::Form<UserForm>,
     links: web::Data<Settings>

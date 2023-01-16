@@ -33,9 +33,9 @@ where
         .send_form(&params)
         .await
         .map_err(ClientHttpError::SendError)?
-        .json::<O>()
+        .json::<serde_json::Value>()
         .await
         .map_err(ClientHttpError::JsonPayloadError)?;
-    Ok(res)
+    Ok(serde_json::from_value(res).unwrap())
 }
 
