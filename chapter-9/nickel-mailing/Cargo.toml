@@ -1,5 +1,5 @@
 [package]
-name = "nickel-mailing"
+name = "mails-microservice"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,9 +7,12 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.68"
+config = { version = "0.13.3", features = ["toml"] }
 env_logger = "0.10.0"
-lettre = { version = "0.10.1", features = ["smtp-transport", "builder", "native-tls"] }
+lettre = { version = "0.10.1", features = ["smtp-transport", "builder"] }
 log = "0.4.17"
 mustache = "0.9.0"
 nickel = "0.11.0"
+serde = "1.0.152"
+serde_derive = "1.0.152"
 thiserror = "1.0.38"

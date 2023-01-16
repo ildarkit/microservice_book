@@ -90,8 +90,8 @@ fn send_impl(req: &mut Request<Data>) -> Result<(), MailError> {
 
 fn spawn_sender(
     address: String,
-    login: String,
-    password: String)
+    login: Option<String>,
+    password: Option<String>)
     -> Result<Sender<Message>>
 {  
     let (tx, rx) = channel::<Message>();
@@ -105,13 +105,17 @@ fn spawn_sender(
         let mailer = SmtpTransport::builder_dangerous(
                 format!("{}", smtp_address[0].ip())
             )
-            .port(smtp_address[0].port())
-            .credentials(Credentials::new(
-                login,
-                password,
+            .port(smtp_address[0].port());
+        let mailer = if login.is_none() {
+            mailer.build()
+        } else {
+            mailer.credentials(Credentials::new(
+                login.unwrap(),
+                password.unwrap(),
             ))
             .authentication(vec![Mechanism::Plain]) 
-            .build();
+            .build()
+        };
 
         for email in rx.iter() {
             debug!("{}", std::str::from_utf8(&email.formatted()).unwrap());
