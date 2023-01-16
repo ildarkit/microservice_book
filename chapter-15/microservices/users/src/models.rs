@@ -9,7 +9,7 @@ pub struct User {
     pub password: String,
 }
 
-#[derive(Insertable)]
+#[derive(Insertable, Debug)]
 #[diesel(table_name = users)]
 pub struct NewUser<'a> {
     pub id: &'a str,

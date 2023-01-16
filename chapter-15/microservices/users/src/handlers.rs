@@ -52,6 +52,7 @@ pub fn handler(request: &Request, pool: &Pool) -> Result<Response, Error> {
                         email: &user_email,
                         password: &user_pass,
                     };
+                    debug!("Signup new user: {:?}", new_user);
                     diesel::insert_into(schema::users::table)
                         .values(&new_user)
                         .execute(&mut conn)?;
@@ -67,24 +68,28 @@ pub fn handler(request: &Request, pool: &Pool) -> Result<Response, Error> {
                 email: String,
                 password: String,
             })?;
-            let user_email = data.email;
+            let user_email = data.email.trim().to_lowercase();
             let user_pass = data.password;
+            debug!("Signin user: {user_email} {user_pass}");
             {
                 use self::schema::users::dsl::*;
 
                 let mut conn = pool.get()?;
                 let user = users.filter(email.eq(user_email))
                     .first::<models::User>(&mut conn)?;
+                debug!("Fetched database user: {:?}", user);
                 let valid = pbkdf2_check(&user_pass, &user.password)
                     .map_err(|err| Error::msg(format!("pass check error {err}")))?;
                 if valid {
+                    debug!("User is valid");
                     let user_id = UserId {
                         id: user.id,
                     };
                     ResponseStatus::Json((user_id, 200))
                 } else {
                     ResponseStatus::Text(
-                        ("access denied".to_string(), 403))
+                        ("access denied".to_string(), 403)
+                    )
                 }
             }
         },
