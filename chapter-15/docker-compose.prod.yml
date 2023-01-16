@@ -34,6 +34,7 @@ services:
       - RUST_LOG=mails_microservice=debug
       - RUST_BACKTRACE=1
       - MAILS_ADDRESS=0.0.0.0:8000
+      - MAILS_SMTP_ADDRESS=smpt:25
   users:
     build: ./microservices/users
     environment:
