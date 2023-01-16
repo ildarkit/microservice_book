@@ -5,8 +5,8 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
-    ports:
-      - 5432:5432
+    volumes:
+      - database_data:/var/lib/postgresql/data
   smtp:
     image: juanluisbaptiste/postfix
     restart: always
@@ -15,13 +15,9 @@ services:
       - SMTP_USERNAME=admin@example.com
       - SMTP_PASSWORD=password
       - SERVER_HOSTNAME=smtp.example.com
-    ports:
-      - 2525:25
   cache:
     image: redis:latest
     restart: always
-    ports:
-      - 6379:6379
   dbsync:
     build: ./microservices/dbsync
     depends_on:
@@ -38,11 +34,6 @@ services:
       - RUST_LOG=mails_microservice=debug
       - RUST_BACKTRACE=1
       - MAILS_ADDRESS=0.0.0.0:8000
-      - MAILS_SMTP_ADDRESS=smtp:2525
-      - MAILS_SMTP_LOGIN=admin@example.com
-      - MAILS_SMTP_PASSWORD=password
-    ports:
-      - 8002:8000
   users:
     build: ./microservices/users
     environment:
@@ -53,8 +44,6 @@ services:
     depends_on:
       - dbsync
       - mails
-    ports:
-      - 8001:8000
   content:
     build: ./microservices/content
     depends_on:
@@ -67,8 +56,6 @@ services:
       - ROCKET_DATABASES={
           postgres_database={url="postgresql://postgres:password@db:5432"}
         }
-    ports:
-      - 8003:8000
   router:
     build: ./microservices/router
     depends_on:
@@ -86,3 +73,6 @@ services:
       - ROUTER_REDIS=redis://cache:6379
     ports:
       - 8000:8000
+  volumes:
+    database_data:
+      driver: local
