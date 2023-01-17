@@ -39,8 +39,7 @@ services:
       - RUST_BACKTRACE=1
       - MAILS_ADDRESS=0.0.0.0:8000
       - MAILS_SMTP_ADDRESS=smtp:2525
-      - MAILS_SMTP_LOGIN=admin@example.com
-      - MAILS_SMTP_PASSWORD=password
+      - MAILS_FROM_ADDRESS=admin@example.com
     ports:
       - 8002:8000
   users:

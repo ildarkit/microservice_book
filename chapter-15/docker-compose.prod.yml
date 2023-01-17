@@ -35,6 +35,7 @@ services:
       - RUST_BACKTRACE=1
       - MAILS_ADDRESS=0.0.0.0:8000
       - MAILS_SMTP_ADDRESS=smpt:25
+      - MAILS_FROM_ADDRESS=admin@example.com
   users:
     build: ./microservices/users
     environment:

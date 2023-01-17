@@ -23,6 +23,7 @@ use settings::Settings;
 struct Data {
     sender: Mutex<Sender<Message>>,
     cache: TemplateCache,
+    from: String,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -75,12 +76,14 @@ fn send_impl(req: &mut Request<Data>) -> Result<(), MailError> {
         &mut body,
         &params
     )?;
+    debug!("Body: {:?}", body);
 
     let email = Message::builder()
         .subject("Confirm email".to_string())
-        .from("<admin@example.com>".parse()?)
+        .from(data.from.parse()?)
         .to(to.parse()?)
         .body(body)?;
+    debug!("Mail: {}", std::str::from_utf8(&email.formatted()).unwrap());
 
     let sender = data.sender.lock().unwrap().clone();
     sender.send(email)
@@ -118,7 +121,6 @@ fn spawn_sender(
         };
 
         for email in rx.iter() {
-            debug!("{}", std::str::from_utf8(&email.formatted()).unwrap());
             let result = mailer.send(&email);
             if let Err(err) = result {
                 error!("Can't send mail: {}", err);
@@ -140,6 +142,7 @@ fn main() -> Result<()> {
     let data = Data {
         sender: Mutex::new(tx),
         cache: TemplateCache::with_policy(ReloadPolicy::Always),
+        from: conf.from_address,
     };
     let mut server = Nickel::with_data(data);
     server.get("/", middleware!("Mailer microservice"));
