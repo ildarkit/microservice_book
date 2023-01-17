@@ -15,8 +15,9 @@ services:
       - SMTP_USERNAME=admin@example.com
       - SMTP_PASSWORD=password
       - SERVER_HOSTNAME=smtp.example.com
+      - ALWAYS_ADD_MISSING_HEADERS=yes
     ports:
-      - 2525:25
+      - "2525:25"
   cache:
     image: redis:latest
     restart: always
@@ -83,5 +84,6 @@ services:
       - ROUTER_COMMENTS=http://content:8000/comments
       - ROUTER_NEW_COMMENT=http://content:8000/new_comment
       - ROUTER_REDIS=redis://cache:6379
+      - ROUTER_REDIS_CACHE_EXP=0
     ports:
       - 8000:8000

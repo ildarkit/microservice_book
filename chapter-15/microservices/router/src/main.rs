@@ -15,22 +15,22 @@ use actix_web::{cookie::Key, middleware::Logger, web, App, HttpServer};
 use cache_actor::{CacheLink, CacheActor};
 use settings::Settings;
 
-fn start(links: Settings) -> Result<()> {
+fn start(config: Settings) -> Result<()> {
     let sys = System::new();
 
     sys.block_on(
         async move {
             let secret = Key::generate();
             
-            let redis = links.redis.clone();
+            let redis = config.redis.clone();
             let addr = SyncArbiter::start(3, move || { 
-                CacheActor::new(&redis, 10)
+                CacheActor::new(&redis, config.redis_cache_exp)
             });
             let cache = CacheLink::new(addr);
-            let bind_address = links.address.clone();
+            let bind_address = config.address.clone();
 
             HttpServer::new(move || {
-                let data = web::Data::new(links.clone());
+                let data = web::Data::new(config.clone());
                 let cache = web::Data::new(cache.clone());
                 App::new()
                     .wrap(IdentityMiddleware::default())
@@ -69,8 +69,8 @@ fn start(links: Settings) -> Result<()> {
 
 fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    let links = Settings::new()?;
-    start(links)
+    let config = Settings::new()?;
+    start(config)
 }
 
 #[cfg(test)]
@@ -142,6 +142,7 @@ mod tests {
                                 comments: mock_url(url, "/comments"),
                                 address: "127.0.0.1:8080".into(),
                                 redis: "redis://127.0.0.1:6379".into(),
+                                redis_cache_exp: 0,
                             })
                         );
                 }
