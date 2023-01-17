@@ -1,6 +1,7 @@
 mod settings;
 
 use std::thread;
+use std::path::Path;
 use std::sync::Mutex;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::{channel, Sender};
@@ -40,6 +41,17 @@ enum MailError {
     OtherError(#[from] Error),
 }
 
+fn check_file(path: &str) -> Result<&Path> {
+    let path = Path::new(path);
+    match path.exists() && path.is_file() {
+        true => Ok(path),
+        false => {
+            let path = path.to_str().unwrap();
+            Err(Error::msg(format!("No such path to template file: {path}")))
+        },  
+    } 
+}
+
 fn send<'mw>(req: &mut Request<Data>, res: Response<'mw, Data>) 
     -> MiddlewareResult<'mw, Data>
 {
@@ -70,9 +82,10 @@ fn send_impl(req: &mut Request<Data>) -> Result<(), MailError> {
     params.insert("code", &code);
     let mut body: Vec<u8> = Vec::new();
 
+    let path = check_file("./templates/confirm.tpl")?;
     let data =req.server_data();
     data.cache.render(
-        "templates/confirm.tpl",
+        path,
         &mut body,
         &params
     )?;
@@ -103,6 +116,7 @@ fn spawn_sender(
         .to_socket_addrs()
         .map_err(|_| Error::msg("Unable to parse address: {address}"))?
         .collect();
+    debug!("Smtp address: {}:{}", smtp_address[0].ip(), smtp_address[0].port());
 
     thread::spawn(move || {
         let mailer = SmtpTransport::builder_dangerous(

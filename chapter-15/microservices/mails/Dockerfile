@@ -7,12 +7,13 @@ RUN cargo build
 
 RUN rm src/*.rs
 COPY ./src ./src
-COPY ./templates ./templates
 RUN rm ./target/debug/deps/mails_microservice*
 RUN cargo build
 
 FROM debian:bullseye-slim
-COPY --from=builder /mails-microservice/target/debug/mails-microservice /app/
+WORKDIR /app
+COPY ./templates ./templates
+COPY --from=builder /mails-microservice/target/debug/mails-microservice ./
 ENV RUST_LOG=debug
-CMD ["/app/mails-microservice"]
+CMD ["./mails-microservice"]
 EXPOSE 8000
