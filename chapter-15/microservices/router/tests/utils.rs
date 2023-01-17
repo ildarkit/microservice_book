@@ -73,8 +73,8 @@ impl WebApi {
         let status = resp.status().to_owned();
         let text = resp.text().unwrap();
 
-        if status != StatusCode::OK {
-            panic!("Bad response [{}] of '{}': {}", status, path, text);
+        if status > StatusCode::CREATED {
+            panic!("Invalid response [{}] of '{}': {}", status, path, text);
         }
 
         let value = serde_json::from_str(&text);
