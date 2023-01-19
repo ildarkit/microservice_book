@@ -52,6 +52,41 @@ fn check_file(path: &str) -> Result<&Path> {
     } 
 }
 
+fn build_smtp_transport(
+    address: String,
+    login: Option<String>,
+    password: Option<String>
+) -> Result<SmtpTransport> 
+{
+    let smtp_address: Vec<_> = address
+        .to_socket_addrs()
+        .map_err(|_| Error::msg("Unable to parse address: {address}"))?
+        .collect();
+    debug!("Smtp relay address: {}:{}", smtp_address[0].ip(), smtp_address[0].port());
+
+    let smtp = SmtpTransport::builder_dangerous(
+                format!("{}", smtp_address[0].ip())
+            )
+            .port(smtp_address[0].port());
+
+    let smtp = match (login, password) {
+        (Some(login), Some(password)) => {
+            smtp.credentials(
+                Credentials::new(
+                    login,
+                    password,
+                )
+            )
+            .authentication(vec![Mechanism::Plain]) 
+            .build()
+        },
+        _ => {
+            smtp.build()
+        },
+    };
+    Ok(smtp)
+}
+
 fn send<'mw>(req: &mut Request<Data>, res: Response<'mw, Data>) 
     -> MiddlewareResult<'mw, Data>
 {
@@ -112,28 +147,12 @@ fn spawn_sender(
 {  
     let (tx, rx) = channel::<Message>();
 
-    let smtp_address: Vec<_> = address
-        .to_socket_addrs()
-        .map_err(|_| Error::msg("Unable to parse address: {address}"))?
-        .collect();
-    debug!("Smtp address: {}:{}", smtp_address[0].ip(), smtp_address[0].port());
+    let mailer = build_smtp_transport(
+        address,
+        login,
+        password)?;
 
-    thread::spawn(move || {
-        let mailer = SmtpTransport::builder_dangerous(
-                format!("{}", smtp_address[0].ip())
-            )
-            .port(smtp_address[0].port());
-        let mailer = if login.is_none() {
-            mailer.build()
-        } else {
-            mailer.credentials(Credentials::new(
-                login.unwrap(),
-                password.unwrap(),
-            ))
-            .authentication(vec![Mechanism::Plain]) 
-            .build()
-        };
-
+    thread::spawn(move || { 
         for email in rx.iter() {
             let result = mailer.send(&email);
             if let Err(err) = result {
