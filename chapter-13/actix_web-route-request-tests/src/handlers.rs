@@ -36,6 +36,10 @@ fn redirect(url: &str) -> HttpResponse {
         .finish()
 }
 
+pub async fn healthcheck() -> &'static str {
+    "Router microservice"
+}
+
 pub async fn signup(params: web::Form<UserForm>,
     count_state: web::Data<CountState>
 )
@@ -101,7 +105,7 @@ pub async fn new_comment(
     Ok(redirect(url))
 }
 
-pub async fn comments(_req: HttpRequest, count_state: web::Data<CountState>)
+pub async fn comments(count_state: web::Data<CountState>)
     -> Result<impl Responder, ApiError>
 {
     let link = count_state.links.comments.to_owned();

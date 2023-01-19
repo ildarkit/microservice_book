@@ -52,6 +52,7 @@ fn start(links: &LinksMap) -> std::io::Result<()> {
                             .route("/comments", web::get().to(handlers::comments))
                     )
                     .route("/stats/counter", web::get().to(handlers::counter))
+                    .route("/healthcheck", web::get().to(handlers::healthcheck))
                     .service(
                         fs::Files::new("/", "./static").index_file("index.html")
                     )
