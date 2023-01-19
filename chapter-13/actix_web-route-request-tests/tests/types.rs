@@ -8,9 +8,9 @@ pub struct UserId {
     id: Uuid,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Comment {
-    pub id: i32,
+    pub id: Option<i32>,
     pub uid: String,
     pub text: String,
 }

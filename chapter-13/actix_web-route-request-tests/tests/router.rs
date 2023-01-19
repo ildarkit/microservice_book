@@ -7,7 +7,7 @@ use self::types::Comment;
 #[test]
 fn router_healthcheck() {
     let mut api = WebApi::router();
-    api.healthcheck("/healthcheck", "Router Microservice");
+    api.healthcheck("/healthcheck", "Router microservice");
 }
 
 #[test]
@@ -26,10 +26,13 @@ fn check_router_full() {
     ];
     api.check_status(Method::POST, "/api/signin", params, StatusCode::FOUND);
     let comment = utils::rand_str();
+    println!("New test comment: {:?}", comment);
     let params = vec![
+        ("uid", "test-user-id"),
         ("text", comment.as_ref()),
     ];
     api.check_status(Method::POST, "/api/new_comment", params, StatusCode::FOUND);
     let comments: Vec<Comment> = api.request(Method::GET, "/api/comments", vec![]);
+    println!("Fetched comments: {:#?}", comments);
     assert!(comments.into_iter().any(|Comment { text, ..}| { text == comment}));
 }

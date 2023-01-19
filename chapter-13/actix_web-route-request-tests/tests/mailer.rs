@@ -5,13 +5,14 @@ use self::utils::*;
 #[test]
 fn mails_healthcheck() {
     let mut api = WebApi::mailer();
-    api.healthcheck("/", "Mailer Microservice");
+    api.healthcheck("/", "Mailer microservice");
 }
 
 #[test]
 fn send_mail() {
     let mut api = WebApi::mailer();
-    let email = rand_str() + "@example.com";
+    let mut email = rand_str() + "@example.com";
+    email = email.to_lowercase();
     let code = rand_str();
     let params = vec![
         ("to", email.as_ref()),
