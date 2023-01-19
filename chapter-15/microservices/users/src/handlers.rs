@@ -12,7 +12,7 @@ type Pool = r2d2::Pool<ConnectionManager<PgConnection>>;
 
 #[derive(Serialize)]
 struct UserId {
-    id: String,
+    id: Option<String>,
 }
 
 type StatusCode = u16;
@@ -73,24 +73,25 @@ pub fn handler(request: &Request, pool: &Pool) -> Result<Response, Error> {
             debug!("Signin user: {user_email} {user_pass}");
             {
                 use self::schema::users::dsl::*;
-
+ 
+                let mut resp_code = 403;
+                let mut user_id = UserId { id: None };
                 let mut conn = pool.get()?;
-                let user = users.filter(email.eq(user_email))
-                    .first::<models::User>(&mut conn)?;
-                debug!("Fetched database user: {:?}", user);
-                let valid = pbkdf2_check(&user_pass, &user.password)
-                    .map_err(|err| Error::msg(format!("pass check error {err}")))?;
-                if valid {
-                    debug!("User is valid");
-                    let user_id = UserId {
-                        id: user.id,
+                let user = users
+                    .filter(email.eq(user_email))
+                    .first::<models::User>(&mut conn)
+                    .ok();
+                if let Some(user) = user {
+                    debug!("Fetched database user: {:?}", user);
+                    let valid = pbkdf2_check(&user_pass, &user.password)
+                        .map_err(|err| Error::msg(format!("pass check error {err}")))?;
+                    if valid {
+                        debug!("User is valid");
+                        resp_code = 200;
+                        user_id = UserId { id: Some(user.id) };
                     };
-                    ResponseStatus::Json((user_id, 200))
-                } else {
-                    ResponseStatus::Text(
-                        ("access denied".to_string(), 403)
-                    )
-                }
+                };
+                ResponseStatus::Json((user_id, resp_code))
             }
         },
         _ => {

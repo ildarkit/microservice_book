@@ -18,7 +18,7 @@ pub struct UserForm {
 
 #[derive(Deserialize, Serialize)]
 pub struct UserId {
-    pub id: String,
+    pub id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -76,9 +76,17 @@ pub async fn signin(req: HttpRequest,
     .await
     .map_err(|e| context_err(e, "Failed to signin"))?;
 
-    Identity::login(&req.extensions(), user.id)?;
-    
-    Ok(redirect("/comments.html"))
+    let mut url = "/comments.html";
+    match user.id {
+        Some(user_id) => { 
+            Identity::login(&req.extensions(), user_id)?;
+        },
+        None => {
+            debug!("The user is not authorized");
+            url = "/login.html";
+        },
+    }
+    Ok(redirect(url))
 }
 
 pub async fn new_comment(

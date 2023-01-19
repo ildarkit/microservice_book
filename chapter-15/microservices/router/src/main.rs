@@ -123,7 +123,7 @@ mod tests {
                 let url = &mockito::server_url();
                 let _signup = add_mock("POST", "/signup", ());
                 let _signin = add_mock(
-                    "POST", "/signin", UserId { id: "user-id".into() });
+                    "POST", "/signin", UserId { id: Some("user-id".into()) });
                 let _new_comment = add_mock("POST", "/new_comment", ());
                 let comment = Comment {
                     id: None,
