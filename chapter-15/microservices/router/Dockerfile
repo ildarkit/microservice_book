@@ -7,12 +7,13 @@ RUN cargo build
 
 RUN rm src/*.rs
 COPY ./src ./src
-COPY ./static ./static
 RUN rm ./target/debug/deps/router_microservice*
 RUN cargo build
 
 FROM debian:bullseye-slim
-COPY --from=builder /router-microservice/target/debug/router-microservice /app/
+WORKDIR /app
+COPY ./static ./static
+COPY --from=builder /router-microservice/target/debug/router-microservice ./
 ENV RUST_LOG=debug
-CMD ["/app/router-microservice"]
+CMD ["./router-microservice"]
 EXPOSE 8000
