@@ -52,6 +52,30 @@ fn check_file(path: &str) -> Result<&Path> {
     } 
 }
 
+fn new_confirm_message(data: &Data, to: String, code: String)
+    -> Result<Message, MailError>
+{
+    let mut params: HashMap<&str, &str> = HashMap::new();
+    params.insert("code", &code);
+    let mut body: Vec<u8> = Vec::new();
+
+    let path = check_file("./templates/confirm.tpl")?;
+    data.cache.render(
+        path,
+        &mut body,
+        &params
+    )?;
+    debug!("Body: {:?}", body);
+
+    let email = Message::builder()
+        .subject("Confirm email".to_string())
+        .from(data.from.parse()?)
+        .to(to.parse()?)
+        .body(body)?;
+    debug!("Mail: {}", std::str::from_utf8(&email.formatted()).unwrap());
+    Ok(email)
+}
+
 fn build_smtp_transport(
     address: String,
     login: Option<String>,
@@ -112,26 +136,9 @@ fn send_impl(req: &mut Request<Data>) -> Result<(), MailError> {
             .to_owned();
         (to, code)
     };
-     
-    let mut params: HashMap<&str, &str> = HashMap::new();
-    params.insert("code", &code);
-    let mut body: Vec<u8> = Vec::new();
 
-    let path = check_file("./templates/confirm.tpl")?;
-    let data =req.server_data();
-    data.cache.render(
-        path,
-        &mut body,
-        &params
-    )?;
-    debug!("Body: {:?}", body);
-
-    let email = Message::builder()
-        .subject("Confirm email".to_string())
-        .from(data.from.parse()?)
-        .to(to.parse()?)
-        .body(body)?;
-    debug!("Mail: {}", std::str::from_utf8(&email.formatted()).unwrap());
+    let data = req.server_data();
+    let email = new_confirm_message(data, to, code)?;
 
     let sender = data.sender.lock().unwrap().clone();
     sender.send(email)
