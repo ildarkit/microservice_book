@@ -20,12 +20,16 @@ fn start(links: &LinksMap) -> std::io::Result<()> {
 
     sys.block_on(
         async move {
-            let secret = Key::generate();
-            let addr = SyncArbiter::start(3, || {
-                CacheActor::new("redis://127.0.0.1:6379", 10)
+            let secret = Key::generate(); 
+            let links = links.clone();
+            let cache_exp = links.cache_exp.unwrap_or(10);
+            let addr = SyncArbiter::start(3, move || {
+                CacheActor::new(
+                    "redis://127.0.0.1:6379",
+                    cache_exp,
+                )
             });
             let cache = CacheLink::new(addr);
-            let links = links.clone();
 
             HttpServer::new(move || {
                 let state = CountState::new(cache.clone(), links.clone());
@@ -128,6 +132,7 @@ mod tests {
                     signin: mock_url(url, "/signin"),
                     new_comment: mock_url(url, "/new_comment"),
                     comments: mock_url(url, "/comments"),
+                    cache_exp: Some(0),
                 };
                 debug!("Mock links: {:#?}", links);
                 start(links).unwrap();

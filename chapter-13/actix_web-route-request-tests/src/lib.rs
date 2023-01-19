@@ -13,4 +13,5 @@ pub struct LinksMap {
     pub signin: String,
     pub new_comment: String,
     pub comments: String,
+    pub cache_exp: Option<usize>,
 }
