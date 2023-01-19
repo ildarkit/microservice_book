@@ -139,18 +139,10 @@ fn send_impl(req: &mut Request<Data>) -> Result<(), MailError> {
     Ok(())
 }
 
-fn spawn_sender(
-    address: String,
-    login: Option<String>,
-    password: Option<String>)
+fn spawn_sender(mailer: SmtpTransport)
     -> Result<Sender<Message>>
 {  
     let (tx, rx) = channel::<Message>();
-
-    let mailer = build_smtp_transport(
-        address,
-        login,
-        password)?;
 
     thread::spawn(move || { 
         for email in rx.iter() {
@@ -166,11 +158,13 @@ fn spawn_sender(
 fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let conf = Settings::new()?;
-    let tx = spawn_sender(
+    let mailer = build_smtp_transport(
         conf.smtp_address,
         conf.smtp_login,
         conf.smtp_password
     )?;
+
+    let tx = spawn_sender(mailer)?;
 
     let data = Data {
         sender: Mutex::new(tx),
