@@ -15,7 +15,7 @@ pub struct UserForm {
 
 #[derive(Deserialize)]
 pub struct UserId {
-    id: String,
+    id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -56,9 +56,17 @@ pub async fn signin(req: HttpRequest, params: web::Form<UserForm>)
     .await
     .map_err(|e| context_err(e, "Failed to signin"))?;
 
-    Identity::login(&req.extensions(), user.id)?;
+    let mut url = "/comments.html";
+    match user.id {
+        Some(user_id) => { 
+            Identity::login(&req.extensions(), user_id)?;
+        },
+        None => {
+            url = "/login.html";
+        },
+    }
     
-    Ok(redirect("/comments.html"))
+    Ok(redirect(url))
 }
 
 pub async fn new_comment(
@@ -90,7 +98,7 @@ pub async fn new_comment(
 pub async fn comments(_req: HttpRequest, count_state: web::Data<CountState>)
     -> Result<impl Responder, ApiError>
 {
-    let fut = client::get_request("http://127.0.0.1:8003/list");
+    let fut = client::get_request("http://127.0.0.1:8003/comments");
     let data = count_state.cache("/list", fut)
         .await
         .map_err(|e| context_err(e, "Failed to get comments"))?;

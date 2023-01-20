@@ -39,35 +39,46 @@ impl CountState {
 
     pub async fn cache<F>(&self, path: &str, fut: F)
         -> Result<Vec<u8>, ClientHttpError>
-    where
-        F: Future<Output = Result<Vec<u8>, ClientHttpError>> + 'static,
+        where
+            F: Future<Output = Result<Vec<u8>, ClientHttpError>> + 'static,
     {
         let link = self.cache.clone();
         let path = path.to_owned();
-        let res = link.get_value(&path).await;
-        let res =
-            if res.is_err() {
-                res.map_err(|e| {
-                    let ctx = "Failed to get from the cache";
-                    log::warn!("{ctx}\n Caused by:\n\t{e}"); 
-                }).ok();
-                let data = fut.await
-                    .map_err(|e| {
-                        let ctx = "Unexpected remote service error"; 
-                        log::error!("{ctx}\n Caused by:\n\t{e}");
-                        e
-                    })?;
-                link.set_value(&path, &data).await
-                    .map_err(|e| {
-                        let ctx = "Failed to set to the cache";
-                        log::warn!("{ctx}\n Caused by:\n\t{e}");
-                    }).ok();
-                data.to_vec()
-            } else {
+        let res = link.get_value(&path).await
+            .map_err(|e| {
+                let ctx = "Failed to get from the cache";
+                log ::warn!("{ctx}\n Caused by:\n\t{e}"); 
+            })
+            .ok();
+        let res = match res {
+            Some(Some(res)) => {
                 log::debug!("Received cached response");
-                res.unwrap().unwrap()
-            };
+                res
+            },
+            Some(None) | None => {
+                self.get_data(&path, fut).await?
+            },
+        };
         Ok(res)
+    }
+    
+    async fn get_data<F>(&self, path: &str, fut: F) -> Result<Vec<u8>, ClientHttpError>
+        where
+            F: Future<Output = Result<Vec<u8>, ClientHttpError>> + 'static,
+    {
+        let data = fut.await
+            .map_err(|e| {
+                let ctx = "Failed to get response from service"; 
+                log::error!("{ctx}\n Caused by:\n\t{e}");
+                e
+            })?;
+        let link = self.cache.clone();
+        link.set_value(path, &data).await
+            .map_err(|e| {
+                let ctx = "Failed to set to the cache";
+                log::warn!("{ctx}\n Caused by:\n\t{e}");
+            }).ok();
+        Ok(data)
     }
 }
 
